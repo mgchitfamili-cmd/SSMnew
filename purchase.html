@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#7c3aed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>POS – ဝယ်ယူမှု</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #7c3aed;
+    --accent-soft: #ede9fe;
+    --ink: #1f2937;
+    --muted: #9ca3af;
+    --line: #e5e7eb;
+    --surface: #ffffff;
+    --page: #f3f4f8;
+    --drawer-w: min(320px, 86vw);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #a78bfa;
+      --accent-soft: #2e2457;
+      --ink: #e5e7eb;
+      --muted: #6b7280;
+      --line: #2b2f3a;
+      --surface: #171a22;
+      --page: #0f1117;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Noto Sans Myanmar", "Padauk", system-ui, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    line-height: 1.6;
+    overflow: hidden;
+  }
+
+  /* ---------- Top bar + main ---------- */
+  .app { height: 100%; display: flex; flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: calc(var(--safe-top) + 8px) 12px 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .icon-btn {
+    width: 44px; height: 44px; border: 0; border-radius: 12px;
+    background: transparent; color: var(--ink);
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .icon-btn:active { background: var(--accent-soft); }
+  .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  main { flex: 1; overflow: auto; padding: 20px; }
+  main p { color: var(--muted); margin: 4px 0 0; }
+
+  /* ---------- Drawer ---------- */
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(15, 17, 23, .5);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+    z-index: 40;
+  }
+  .drawer {
+    position: fixed; top: 0; bottom: 0; left: 0;
+    width: var(--drawer-w);
+    background: var(--surface);
+    transform: translateX(-100%);
+    transition: transform .28s cubic-bezier(.3, .8, .3, 1);
+    z-index: 50;
+    overflow-y: auto; overscroll-behavior: contain;
+    padding: calc(var(--safe-top) + 12px) 0 calc(var(--safe-bottom) + 24px);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, .15);
+  }
+  body.menu-open .drawer { transform: none; }
+  body.menu-open .backdrop { opacity: 1; pointer-events: auto; }
+  body.dragging .drawer, body.dragging .backdrop { transition: none; }
+
+  .group-title {
+    margin: 18px 20px 6px; font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .group-title:first-child { margin-top: 8px; }
+
+  .item {
+    display: flex; align-items: center; gap: 16px;
+    width: calc(100% - 24px); margin: 0 12px;
+    min-height: 48px; padding: 0 12px;
+    border: 0; border-radius: 12px; background: transparent;
+    font: inherit; font-size: 16px; color: var(--ink); text-align: left;
+    cursor: pointer;
+  }
+  .item:active { background: var(--accent-soft); }
+  .item svg { flex: none; }
+  .item .label { flex: 1; }
+  .item .chev { transition: transform .2s; color: var(--ink); }
+  .item.open .chev { transform: rotate(180deg); }
+  .item.active { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+  .item.disabled { color: var(--muted); }
+  .item.disabled .chev { color: var(--muted); }
+
+  .sub { display: none; margin: 0 12px 4px 56px; border-left: 2px solid var(--line); }
+  .sub.open { display: block; }
+  .sub .item { width: 100%; margin: 0; min-height: 42px; font-size: 15px; padding-left: 16px; }
+
+  /* Wide screens (iPad landscape): menu stays visible */
+  @media (min-width: 1024px) {
+    .drawer { transform: none; box-shadow: none; border-right: 1px solid var(--line); }
+    .backdrop { display: none; }
+    .app { margin-left: var(--drawer-w); }
+    #menuBtn { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .drawer, .backdrop, .item .chev { transition: none; }
+  }
+
+  /* =====================================================
+     ကုန်ပစ္စည်း (Products) page
+     ===================================================== */
+  :root {
+    --on-accent: #ffffff;
+    --danger: #dc2626;
+    --danger-soft: #fee2e2;
+    --warn: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --on-accent: #1b1033;
+      --danger: #f87171;
+      --danger-soft: #3b1c1c;
+      --warn: #fbbf24;
+    }
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .pg { max-width: 1240px; margin: 0 auto; }
+
+  /* Buttons */
+  .btn {
+    min-height: 44px; padding: 0 18px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 15px; font-weight: 500; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    white-space: nowrap;
+  }
+  .btn:active { background: var(--accent-soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .btn.primary:active { filter: brightness(.92); }
+  .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+  .btn.small { min-height: 40px; padding: 0 14px; }
+  @media (hover: hover) {
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary:hover { filter: brightness(1.06); }
+  }
+  .badge {
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+    background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700;
+    display: inline-grid; place-items: center;
+  }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+  .search {
+    flex: 1 1 100%; display: flex; align-items: center; gap: 10px;
+    min-height: 46px; padding: 0 14px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  }
+  .search:focus-within { border-color: var(--accent); }
+  .search input {
+    flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+    font: inherit; font-size: 15px; color: var(--ink); height: 44px;
+  }
+  .toolbar .btn { flex: 1 1 0; }
+  @media (min-width: 700px) {
+    .search { flex: 1 1 320px; }
+    .toolbar .btn { flex: 0 0 auto; }
+  }
+  .filters {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+    margin-top: 12px; padding: 14px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line);
+  }
+  .filters[hidden] { display: none; }
+  .filters .reset { align-self: end; }
+  .count { margin: 14px 2px 10px; font-size: 14px; color: var(--muted); }
+
+  /* Form controls */
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field > label, .flabel { font-size: 14px; font-weight: 500; }
+  .field .req { color: var(--danger); margin-left: 3px; }
+  .field input[type=text], .field input[type=number], .field select, .field textarea, .addrow input {
+    width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 15px;
+  }
+  .field textarea { min-height: 96px; padding: 10px 14px; resize: vertical; }
+  .field input:focus, .field select:focus, .field textarea:focus, .addrow input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field .help { font-size: 13px; color: var(--muted); }
+  .field .msg { font-size: 13px; color: var(--danger); display: none; }
+  .field.err input, .field.err select { border-color: var(--danger); }
+  .field.err .msg { display: block; }
+  .linkbtn {
+    align-self: flex-start; border: 0; background: none; padding: 4px 0; cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 500; color: var(--accent); text-decoration: underline;
+  }
+  .addrow { display: flex; gap: 8px; }
+  .addrow[hidden] { display: none; }
+  .addrow input { flex: 1; }
+  .check { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; cursor: pointer; }
+  .check input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+
+  /* Product visual */
+  .pimg {
+    width: 76px; height: 76px; flex: none; border-radius: 16px; overflow: hidden;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--line); display: grid; place-items: center;
+  }
+  .pimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pimg.sm { width: 48px; height: 48px; border-radius: 12px; }
+  .pimg.lg { width: 112px; height: 112px; border-radius: 20px; }
+
+  /* Narrow screens: cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .pcard {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .pcard.off { background: var(--page); }
+  .phead { display: flex; gap: 14px; align-items: center; }
+  .pname { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.45; }
+  .psub { font-size: 14px; color: var(--muted); }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0; }
+  .kv dt { font-size: 13px; color: var(--muted); }
+  .kv dd { margin: 0; font-size: 16px; font-weight: 600; }
+  .chip {
+    display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: 13px; font-weight: 500;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .chip.off { background: var(--line); color: var(--muted); }
+  .acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .abtn {
+    min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+    color: var(--ink); font: inherit; font-size: 13px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .abtn:active { background: var(--accent-soft); }
+  .abtn.del { color: var(--danger); }
+
+  /* Wide screens (Windows): table */
+  .tbl-wrap { display: none; }
+  @media (min-width: 900px) {
+    .cards { display: none; }
+    .tbl-wrap { display: block; }
+  }
+  .tbl {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
+  }
+  .tbl th {
+    text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);
+    padding: 12px 14px; background: var(--page); border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  .tbl td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .tbl tbody tr:first-child td { border-top: 0; }
+  .tbl .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tbl tr.off td:not(.st):not(.ac) > * { opacity: .55; }
+  .tcell { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+  .tcell .pname { font-size: 16px; }
+  .tcell .psub { font-size: 13px; }
+  .tact { display: flex; gap: 6px; justify-content: flex-end; }
+  .ibtn {
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid transparent; background: transparent;
+    color: var(--ink); display: grid; place-items: center; cursor: pointer;
+  }
+  .ibtn:active, .ibtn:hover { background: var(--accent-soft); }
+  .ibtn.del { color: var(--danger); }
+  .ibtn.del:hover { background: var(--danger-soft); }
+  @media (hover: hover) { .tbl tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); } }
+
+  /* Empty state */
+  .empty {
+    text-align: center; padding: 56px 20px; border-radius: 18px;
+    border: 1px dashed var(--line); background: var(--surface);
+  }
+  .empty .pimg { margin: 0 auto 14px; width: 72px; height: 72px; }
+  .empty h3 { margin: 0 0 6px; font-size: 18px; }
+  .empty p { margin: 0 0 18px; color: var(--muted); }
+  .empty .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* Dialogs */
+  dialog.dlg {
+    padding: 0; border: 0; border-radius: 20px; color: var(--ink); background: var(--surface);
+    width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .3);
+  }
+  dialog.dlg.narrow { width: min(420px, calc(100vw - 32px)); }
+  dialog.dlg[open] { display: flex; flex-direction: column; }
+  dialog.dlg::backdrop { background: rgba(15, 17, 23, .55); }
+  .dh {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 12px 10px 22px; border-bottom: 1px solid var(--line); flex: none;
+  }
+  .dh h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .db { padding: 6px 22px 20px; overflow-y: auto; flex: 1; overscroll-behavior: contain; }
+  .df {
+    display: flex; gap: 10px; padding: 12px 22px calc(12px + var(--safe-bottom));
+    border-top: 1px solid var(--line); flex: none;
+  }
+  .df .btn { flex: 1; }
+  @media (min-width: 640px) { .df { justify-content: flex-end; } .df .btn { flex: 0 0 auto; min-width: 140px; } }
+  @media (max-width: 639px) {
+    dialog.dlg:not(.narrow) {
+      width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; margin: 0;
+    }
+  }
+  .sec {
+    margin: 22px 0 14px; padding-bottom: 8px; font-size: 16px; font-weight: 700; color: var(--accent);
+    border-bottom: 2px solid var(--accent-soft);
+  }
+  .sec:first-child { margin-top: 14px; }
+  .fg { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 640px) { .fg { grid-template-columns: 1fr 1fr; } .fg .full { grid-column: 1 / -1; } }
+  .imgrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .hint { font-size: 13px; color: var(--muted); min-height: 20px; }
+  .hint.warn { color: var(--warn); }
+  .detail-top { display: flex; gap: 16px; align-items: center; margin: 16px 0 8px; }
+  .detail-top .pname { font-size: 20px; }
+  .detail-desc { margin: 14px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--page); white-space: pre-wrap; }
+  .confirm-text { margin: 20px 0 6px; font-size: 16px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; bottom: calc(var(--safe-bottom) + 24px); transform: translate(-50%, 20px);
+    background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 12px;
+    font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* =====================================================
+     ဝယ်ယူမှု (Purchase) page
+     ===================================================== */
+  .field input[type=date] {
+    width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 15px;
+  }
+  .field input[type=date]:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .pickres { margin-top: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+  .pickres[hidden] { display: none; }
+  .pick {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px;
+    border: 0; border-top: 1px solid var(--line); background: transparent;
+    font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+  }
+  .pick:first-child { border-top: 0; }
+  .pick:active, .pick:hover { background: var(--accent-soft); }
+  .irow { border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-top: 10px; background: var(--surface); }
+  .ihead { display: flex; align-items: center; gap: 12px; }
+  .ihead .iname { flex: 1; min-width: 0; }
+  .igrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .igrid .field:last-child { grid-column: 1 / -1; }
+  @media (min-width: 640px) { .igrid { grid-template-columns: 1fr 1fr 1fr; } .igrid .field:last-child { grid-column: auto; } }
+  .ltotal { min-height: 46px; display: flex; align-items: center; font-weight: 600; font-size: 16px; }
+  .tot { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--page); display: grid; gap: 6px; }
+  .tot > div { display: flex; justify-content: space-between; gap: 12px; }
+  .tot .grand { font-size: 18px; font-weight: 700; }
+  .vrow { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .due { color: var(--danger); font-weight: 600; }
+  .chip.debt { background: var(--danger-soft); color: var(--danger); }
+</style>
+</style>
+</head>
+<body data-page="purchase/list" data-title="ဝယ်ယူမှု">
+
+<div class="app">
+  <header class="topbar">
+    <button class="icon-btn" id="menuBtn" aria-label="မီနူး ဖွင့်ရန်">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <h1 id="pageTitle">ဝယ်ယူမှု</h1>
+  </header>
+  <main id="content"></main>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+<nav class="drawer" id="drawer" aria-label="အဓိက မီနူး"></nav>
+
+<script>
+/* ---------- Icons (24x24, stroke) ---------- */
+const ICONS = {
+  grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>',
+  cart: '<circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M2 3h3l2.7 11.4a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L21 7H6"/>',
+  truck: '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+  userPlus: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/>',
+  building: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+  store: '<path d="M3 12l3-8h12l3 8v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 12h5l1 3h6l1-3h5"/>',
+  wallet: '<path d="M3 7a2 2 0 0 1 2-2h13v4"/><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 13.5h2"/>',
+  plusCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  box: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
+  bag: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  percent: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+  bars: '<path d="M3 3v18h18"/><path d="M8 17v-5M12 17V8M16 17v-3M20 17v-7"/>',
+  swap: '<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
+  gear: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>',
+  dollar: '<path d="M12 2v20M17 6.5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  minusCircle: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  card: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  fileX: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M10 12.5l4 4M14 12.5l-4 4"/>',
+  fileIn: '<path d="M14 3H7a2 2 0 0 0-2 2v6M14 3l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2"/><path d="M2 14h9M8 11l3 3-3 3"/>',
+  fileOut: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 14h6M13 11l3 3-3 3"/>',
+  list: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  printer: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  chevron: '<path d="M6 9l6 6 6-6"/>'
+};
+const svg = (name, size = 24) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+/* ---------- Menu data ----------
+   sub: true  -> expandable (children are placeholders, replace later)
+   off: true  -> greyed out (feature not enabled)                    */
+const LIST_SUB = [{ id: 'list', label: 'စာရင်း' }, { id: 'new', label: 'အသစ်ထည့်ရန်' }];
+const VIEW_SUB = [{ id: 'view', label: 'ကြည့်ရန်' }];
+
+const MENU = [
+  { title: 'မူလစာမျက်နှာ', items: [
+    { id: 'summary',  label: 'အနှစ်ချုပ်',      icon: 'grid' },
+    { id: 'retail',   label: 'လက်လီအရောင်း',   icon: 'cart' },
+    { id: 'wholesale',label: 'လက်ကားအရောင်း',  icon: 'truck', off: true },
+  ]},
+  { title: 'အဓိက', items: [
+    { id: 'users',     label: 'အသုံးပြုသူ',          icon: 'users' },
+    { id: 'customers', label: 'ဖောက်သည်',           icon: 'userPlus' },
+    { id: 'suppliers', label: 'ပစ္စည်းသွင်းသူ',       icon: 'building' },
+    { id: 'locations', label: 'လုပ်ငန်းနေရာ',        icon: 'store' },
+    { id: 'accounts',  label: 'ငွေအကောင့်',          icon: 'wallet' },
+    { id: 'income',    label: 'အခြားဝင်ငွေ',         icon: 'plusCircle', sub: LIST_SUB },
+    { id: 'products',  label: 'ကုန်ပစ္စည်း',          icon: 'box', sub: LIST_SUB },
+    { id: 'purchase',  label: 'ဝယ်ယူမှု',            icon: 'bag', sub: LIST_SUB },
+    { id: 'pricing',   label: 'ရောင်းစျေးနှင့် လျှော့စျေး', icon: 'percent' },
+    { id: 'sales',     label: 'ရောင်းချမှု',          icon: 'chart', sub: LIST_SUB },
+    { id: 'transfer',  label: 'လွှဲပြောင်းမှု',        icon: 'swap', sub: LIST_SUB, off: true },
+    { id: 'adjust',    label: 'စာရင်းညှိ',            icon: 'gear', sub: LIST_SUB },
+    { id: 'money',     label: 'ငွေကြေး',             icon: 'dollar' },
+    { id: 'expense',   label: 'အသုံးစရိတ်',          icon: 'minusCircle', sub: LIST_SUB },
+    { id: 'debt',      label: 'အကြွေး ပေးချေမှု',     icon: 'card', sub: LIST_SUB },
+  ]},
+  { title: 'အစီရင်ခံစာ', items: [
+    { id: 'r-purchase', label: 'ဝယ်ယူမှု အစီရင်ခံစာ',     icon: 'file', sub: VIEW_SUB },
+    { id: 'r-sales',    label: 'ရောင်းချမှု အစီရင်ခံစာ',   icon: 'file', sub: VIEW_SUB },
+    { id: 'r-cash',     label: 'အဝင်အထွက် အစီရင်ခံစာ',   icon: 'fileX', sub: VIEW_SUB },
+    { id: 'r-adjust',   label: 'စာရင်းညှိ အစီရင်ခံစာ',    icon: 'fileIn', sub: VIEW_SUB },
+    { id: 'r-transfer', label: 'လွှဲပြောင်းမှု အစီရင်ခံစာ', icon: 'fileOut', sub: VIEW_SUB, off: true },
+    { id: 'r-loan',     label: 'လည်ချာ အစီရင်ခံစာ',       icon: 'list', sub: VIEW_SUB, off: true },
+    { id: 'r-summary',  label: 'အနှစ်ချုပ်',              icon: 'list', sub: VIEW_SUB, off: true },
+    { id: 'r-stock',    label: 'ပစ္စည်းစာရင်း အစီရင်ခံစာ',  icon: 'list' },
+    { id: 'r-profit',   label: 'ရောင်းချမှု အမြတ်',        icon: 'chart', off: true },
+    { id: 'r-expense',  label: 'အသုံးစရိတ် အစီရင်ခံစာ',    icon: 'minusCircle', off: true },
+    { id: 'r-income',   label: 'ဝင်ငွေ အစီရင်ခံစာ',        icon: 'bars', off: true },
+    { id: 'r-trade',    label: 'ကုန်သွယ်မှု အစီရင်ခံစာ',   icon: 'list', off: true },
+  ]},
+  { title: 'ပြင်ဆင်မှု', items: [
+    { id: 's-print',    label: 'ပရင့်ဆက်တင်',   icon: 'printer', sub: LIST_SUB },
+    { id: 's-business', label: 'လုပ်ငန်းဆက်တင်', icon: 'building', sub: LIST_SUB },
+  ]},
+];
+
+/* ---------- Build drawer ---------- */
+const drawer = document.getElementById('drawer');
+const titleEl = document.getElementById('pageTitle');
+let activeId = 'summary';
+
+function render() {
+  drawer.innerHTML = MENU.map(g => `
+    <div class="group-title">${g.title}</div>
+    ${g.items.map(it => `
+      <button class="item ${it.off ? 'disabled' : ''} ${it.id === activeId ? 'active' : ''}"
+              data-id="${it.id}" ${it.sub ? 'data-sub="1" aria-expanded="false"' : ''}>
+        ${svg(it.icon)}
+        <span class="label">${it.label}</span>
+        ${it.sub ? `<span class="chev">${svg('chevron', 20)}</span>` : ''}
+      </button>
+      ${it.sub ? `<div class="sub" data-parent="${it.id}">
+        ${it.sub.map(c => `<button class="item" data-id="${it.id}/${c.id}" data-label="${c.label}">
+          <span class="label">${c.label}</span></button>`).join('')}
+      </div>` : ''}
+    `).join('')}
+  `).join('');
+}
+
+function setActive(id, label) {
+  activeId = id;
+  titleEl.textContent = label;
+  window.showPage(id, label);
+  drawer.querySelectorAll('.item.active').forEach(el => el.classList.remove('active'));
+  const el = drawer.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  if (el) el.classList.add('active');
+  if (window.matchMedia('(max-width: 1023px)').matches) closeMenu();
+}
+
+drawer.addEventListener('click', e => {
+  const btn = e.target.closest('.item');
+  if (!btn) return;
+  if (btn.dataset.sub) {                       // expand / collapse
+    const sub = drawer.querySelector(`.sub[data-parent="${btn.dataset.id}"]`);
+    const open = sub.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open);
+    return;
+  }
+  const label = btn.dataset.label || btn.querySelector('.label').textContent;
+  go(btn.dataset.id, label);
+});
+
+/* ---------- Multi-page navigation ---------- */
+const ROUTES = {
+  'products/list': 'products.html', 'products/new': 'products.html?new=1',
+  'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
+  'summary': 'index.html',
+};
+function go(id, label) {
+  const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
+  const here = location.pathname.split('/').pop() || 'index.html';
+  if (target.split('?')[0] === here) setActive(id, label);   // same page: no reload
+  else location.href = target;
+}
+
+/* default page body (pages that have a real module overwrite showPage) */
+window.showPage = function () {
+  document.getElementById('content').innerHTML = '<p>ဒီနေရာမှာ စာမျက်နှာ အကြောင်းအရာ ထည့်ပါမယ်။</p>';
+};
+
+/* ---------- Open / close ---------- */
+const openMenu  = () => document.body.classList.add('menu-open');
+const closeMenu = () => document.body.classList.remove('menu-open');
+document.getElementById('menuBtn').addEventListener('click', openMenu);
+document.getElementById('backdrop').addEventListener('click', closeMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+
+/* ---------- Swipe: open from left edge, close by swiping left ---------- */
+const DRAWER_W = () => drawer.getBoundingClientRect().width || 300;
+let startX = 0, startY = 0, dx = 0, mode = null;
+
+document.addEventListener('touchstart', e => {
+  if (window.matchMedia('(min-width: 1024px)').matches) return;
+  const t = e.touches[0];
+  startX = t.clientX; startY = t.clientY; dx = 0; mode = null;
+  const isOpen = document.body.classList.contains('menu-open');
+  if (!isOpen && startX < 20) mode = 'open';
+  else if (isOpen) mode = 'close';
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!mode) return;
+  const t = e.touches[0];
+  dx = t.clientX - startX;
+  if (Math.abs(t.clientY - startY) > Math.abs(dx) && !document.body.classList.contains('dragging')) { mode = null; return; }
+  document.body.classList.add('dragging');
+  const w = DRAWER_W();
+  const x = mode === 'open' ? Math.min(0, -w + dx) : Math.min(0, dx);
+  drawer.style.transform = `translateX(${x}px)`;
+  document.getElementById('backdrop').style.opacity = String(1 + x / w);
+  document.getElementById('backdrop').style.pointerEvents = 'auto';
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (!mode) return;
+  document.body.classList.remove('dragging');
+  drawer.style.transform = '';
+  const bd = document.getElementById('backdrop');
+  bd.style.opacity = ''; bd.style.pointerEvents = '';
+  if (mode === 'open' && dx > 80) openMenu();
+  if (mode === 'close' && dx < -80) closeMenu();
+  mode = null;
+});
+
+render();
+</script>
+<script>
+/* Shared data layer + helpers (used by products.js and purchase.js) */
+(() => {
+Object.assign(ICONS, {
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  filter: '<path d="M4 7h16M7 12h10M10 17h4"/>',
+  plus:   '<path d="M12 5v14M5 12h14"/>',
+  eye:    '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  edit:   '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  power:  '<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
+  trash:  '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  x:      '<path d="M6 6l12 12M18 6L6 18"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+});
+
+
+const idb = {
+  db: null,
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('pos-db', 2);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        ['products', 'categories', 'units', 'meta', 'purchases'].forEach(n => {
+          if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, { keyPath: 'id' });
+        });
+      };
+      r.onsuccess = () => { this.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  all(n) {
+    return new Promise((res, rej) => {
+      const q = this.db.transaction(n).objectStore(n).getAll();
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    });
+  },
+  put(n, o) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(n, 'readwrite'); t.objectStore(n).put(o);
+      t.oncomplete = () => res(o); t.onerror = () => rej(t.error);
+    });
+  },
+  del(n, id) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(n, 'readwrite'); t.objectStore(n).delete(id);
+      t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+    });
+  },
+};
+
+/* ---------- Defaults (categories & units are editable by the user) ---------- */
+const DEFAULT_CATEGORIES = ['ကလေးသုံးပစ္စည်း', 'အစားအသောက်', 'အိမ်သုံးပစ္စည်း', 'အလှကုန်']
+  .map((name, i) => ({ id: 'c' + (i + 1), name }));
+// group 'weight' + ratio: 1 ပိဿာ = 100 ကျပ်သား (base weight unit = ကျပ်သား)
+const DEFAULT_UNITS = [
+  { name: 'ခု' }, { name: 'ထုပ်' }, { name: 'အထုပ်' }, { name: 'ဘူး' }, { name: 'ဗူး' }, { name: 'ဒါဇင်' },
+  { name: 'ပိဿာ', group: 'weight', ratio: 100 }, { name: 'ကျပ်သား', group: 'weight', ratio: 1 },
+  { name: 'ပေါင်', group: 'weight' }, { name: 'ကီလို', group: 'weight' }, { name: 'လီတာ' },
+].map((u, i) => ({ id: 'u' + (i + 1), group: 'count', ...u }));
+
+const S = { products: [], categories: [], units: [], purchases: [], seq: 0, poSeq: 0 };
+let storeError = null;
+
+async function initStore() {
+  await idb.open();
+  S.products   = await idb.all('products');
+  S.categories = await idb.all('categories');
+  S.units      = await idb.all('units');
+  const meta = await idb.all('meta');
+  S.purchases  = await idb.all('purchases');
+  S.seq = (meta.find(m => m.id === 'seq') || {}).value || 0;
+  S.poSeq = (meta.find(m => m.id === 'poSeq') || {}).value || 0;
+  if (!meta.some(m => m.id === 'seeded')) {
+    for (const c of DEFAULT_CATEGORIES) { await idb.put('categories', c); S.categories.push(c); }
+    for (const u of DEFAULT_UNITS)      { await idb.put('units', u);      S.units.push(u); }
+    await idb.put('meta', { id: 'seeded', value: 1 });
+  }
+}
+const ready = initStore().catch(err => { storeError = err; console.error(err); });
+
+/* ---------- Helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const F = id => document.getElementById('f-' + id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => Number(n).toLocaleString('en-US') + ' ကျပ်';
+const norm = s => String(s ?? '').toLowerCase();
+const qty = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const catName  = id => (S.categories.find(c => c.id === id) || {}).name || '-';
+const unitName = id => (S.units.find(u => u.id === id) || {}).name || '-';
+const titleOf = p => p.nameMm || p.name;
+const subOf   = p => (p.nameMm ? p.name : '');
+const find = id => S.products.find(p => p.id === id);
+const parsePrice = x => {
+  const s = String(x ?? '').trim(); if (s === '') return null;
+  const n = Number(s); return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+};
+const thumb = (p, cls = '') =>
+  `<div class="pimg ${cls}">${p.image ? `<img src="${p.image}" alt="">` : svg('box', cls === 'sm' ? 22 : cls === 'lg' ? 44 : 34)}</div>`;
+
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function fileToThumb(file, max = 240) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const r = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', .78));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('image')); };
+    img.src = url;
+  });
+}
+
+
+/* ---------- Shared dialogs (confirm + toast + close buttons) ---------- */
+function ensureShared() {
+  if ($('#cdlg')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+<dialog class="dlg narrow" id="cdlg">
+  <form method="dialog">
+    <div class="db"><p class="confirm-text" id="cText"></p></div>
+    <div class="df">
+      <button class="btn" value="no">မလုပ်တော့ပါ</button>
+      <button class="btn danger" value="ok" id="cOk">ဖျက်မည်</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status"></div>`);
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-close]'); if (b) b.closest('dialog').close();
+  });
+}
+
+function ask(text, okLabel = 'ဖျက်မည်') {
+  return new Promise(res => {
+    const d = $('#cdlg'); $('#cText').textContent = text; $('#cOk').textContent = okLabel;
+    d.returnValue = ''; d.addEventListener('close', () => res(d.returnValue === 'ok'), { once: true });
+    d.showModal();
+  });
+}
+
+
+window.POS = { idb, S, ready, storeError: () => storeError, ensureShared,
+  $, F, esc, money, qty, uid, norm, toast, ask, thumb, titleOf, subOf, find, parsePrice,
+  catName, unitName, fileToThumb, DEFAULT_UNITS };
+})();
+</script>
+<script>
+/* ဝယ်ယူမှု (Purchase) page — needs core.js + pos.js */
+(() => {
+const { idb, S, ready, $, esc, money, qty, uid, norm, toast, ask, thumb, titleOf, find, parsePrice, unitName } = window.POS;
+const G = id => document.getElementById('pu-' + id);
+
+let draft = { items: [], paidTouched: false };
+let viewId = null;
+const U = { q: '' };
+
+/* ---------- helpers ---------- */
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const dmy = s => (s ? s.split('-').reverse().join('/') : '-');
+const n = x => { const v = Number(x); return Number.isFinite(v) && v >= 0 ? v : 0; };
+const lineOf = it => Math.round(n(it.qty) * n(it.cost));
+const round3 = x => Math.round(x * 1000) / 1000;
+const dueOf = p => Math.max(0, p.total - p.paid);
+
+function nextNo() {
+  let no;
+  do { S.poSeq++; no = 'PO-' + String(S.poSeq).padStart(4, '0'); } while (S.purchases.some(p => p.no === no));
+  return no;
+}
+
+// one transaction: purchase + product stock (+ counter) succeed or fail together
+function commit({ put, del, products }) {
+  return new Promise((res, rej) => {
+    const t = idb.db.transaction(['purchases', 'products', 'meta'], 'readwrite');
+    if (put) t.objectStore('purchases').put(put);
+    if (del) t.objectStore('purchases').delete(del);
+    (products || []).forEach(p => t.objectStore('products').put(p));
+    t.objectStore('meta').put({ id: 'poSeq', value: S.poSeq });
+    t.oncomplete = () => res();
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error);
+  });
+}
+
+/* ---------- Dialogs (created once) ---------- */
+function ensureDlgs() {
+  if ($('#pudlg')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+<dialog class="dlg" id="pudlg" aria-labelledby="puTitle">
+  <form id="puform" novalidate>
+    <div class="dh"><h2 id="puTitle">ဝယ်ယူမှု အသစ်ထည့်ရန်</h2>
+      <button type="button" class="icon-btn" data-close aria-label="ပိတ်ရန်">${svg('x')}</button></div>
+    <div class="db">
+      <h3 class="sec">ဝယ်ယူမှု အချက်အလက်</h3>
+      <div class="fg">
+        <div class="field" id="w-pdate"><label for="pu-date">ဝယ်ယူသည့်ရက်စွဲ<span class="req">*</span></label>
+          <input type="date" id="pu-date"><div class="msg"></div></div>
+        <div class="field" id="w-psupplier"><label for="pu-supplier">ပစ္စည်းသွင်းသူ</label>
+          <input type="text" id="pu-supplier" list="pu-suppliers" autocomplete="off"><datalist id="pu-suppliers"></datalist></div>
+        <div class="field full" id="w-pref"><label for="pu-ref">ရောင်းသူ၏ ပြေစာအမှတ်</label>
+          <input type="text" id="pu-ref" autocomplete="off"><div class="help">မထည့်လည်းရသည်</div></div>
+      </div>
+
+      <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
+      <div class="field" id="w-pitems">
+        <label class="search">${svg('search', 20)}<input id="pu-find" type="search" placeholder="ကုန်ပစ္စည်း ရှာ၍ ထည့်ရန်" autocomplete="off"></label>
+        <div class="pickres" id="pu-res" hidden></div>
+        <div class="msg"></div>
+      </div>
+      <div id="pu-items"></div>
+
+      <h3 class="sec">ငွေပေးချေမှု</h3>
+      <div class="fg">
+        <div class="field" id="w-ppaid"><label for="pu-paid">ပေးပြီးငွေ (ကျပ်)<span class="req">*</span></label>
+          <input type="number" id="pu-paid" min="0" step="1" inputmode="numeric"><div class="msg"></div></div>
+        <div class="field"><label for="pu-note">မှတ်ချက်</label><input type="text" id="pu-note" autocomplete="off"></div>
+        <label class="check full"><input type="checkbox" id="pu-updcost" checked><span>ကုန်ကျစျေးကို ဤဝယ်စျေးအတိုင်း ပြင်မည်</span></label>
+      </div>
+      <div class="tot" aria-live="polite">
+        <div class="grand"><span>စုစုပေါင်း</span><span id="pu-total">0 ကျပ်</span></div>
+        <div><span>ကျန်ငွေ (အကြွေး)</span><span id="pu-due">0 ကျပ်</span></div>
+      </div>
+      <div class="hint" id="pu-phint" style="margin-top:8px"></div>
+    </div>
+    <div class="df">
+      <button type="button" class="btn" data-close>မလုပ်တော့ပါ</button>
+      <button type="submit" class="btn primary" id="puSave">သိမ်းမည်</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="puview" aria-labelledby="puvTitle">
+  <div class="dh"><h2 id="puvTitle">ဝယ်ယူမှု အသေးစိတ်</h2>
+    <button type="button" class="icon-btn" data-close aria-label="ပိတ်ရန်">${svg('x')}</button></div>
+  <div class="db" id="puvBody"></div>
+  <div class="df"><button type="button" class="btn" data-close>ပိတ်ရန်</button></div>
+</dialog>`);
+
+  $('#puview').addEventListener('click', e => { if (e.target.id === 'puview') e.target.close(); });
+  $('#pudlg').addEventListener('close', () => {
+    if (activeId === 'purchase/new') {              // drawer highlight back to list
+      activeId = 'purchase/list';
+      drawer.querySelectorAll('.item.active').forEach(el => el.classList.remove('active'));
+      const el = drawer.querySelector('[data-id="purchase/list"]'); if (el) el.classList.add('active');
+    }
+  });
+
+  const form = $('#puform');
+  form.addEventListener('submit', submitForm);
+  // Enter inside a field must not save the whole purchase by accident
+  form.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+    if (e.target.id === 'pu-find') { const b = $('#pu-res .pick'); if (b) addItem(b.dataset.pick); }
+  });
+
+  // product picker
+  const find_ = G('find');
+  find_.addEventListener('focus', renderPick);
+  find_.addEventListener('input', renderPick);
+  G('res').addEventListener('click', e => { const b = e.target.closest('[data-pick]'); if (b) addItem(b.dataset.pick); });
+  $('#pudlg').addEventListener('click', e => {
+    if (!e.target.closest('#w-pitems')) G('res').hidden = true;
+  });
+
+  // item rows
+  const box = G('items');
+  box.addEventListener('input', e => {
+    const f = e.target.dataset.f; if (!f) return;
+    const row = e.target.closest('.irow'), it = draft.items[+row.dataset.i];
+    it[f] = e.target.value;
+    row.querySelector('[data-lt]').textContent = money(lineOf(it));
+    updateTotals();
+  });
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-rm]'); if (!b) return;
+    draft.items.splice(+b.dataset.rm, 1); renderItems();
+  });
+
+  G('paid').addEventListener('input', () => { draft.paidTouched = true; updateTotals(); });
+}
+
+/* ---------- Product picker ---------- */
+function renderPick() {
+  const q = norm(G('find').value.trim()), box = G('res');
+  const a = S.products
+    .filter(p => p.active && (!q || [p.name, p.nameMm, p.code, p.barcode, p.brand].some(v => norm(v).includes(q))))
+    .sort((x, y) => titleOf(x).localeCompare(titleOf(y), 'my')).slice(0, 8);
+  box.hidden = false;
+  box.innerHTML = a.length
+    ? a.map(p => `<button type="button" class="pick" data-pick="${p.id}">${thumb(p, 'sm')}
+        <span><span class="pname" style="font-size:15px">${esc(titleOf(p))}</span><br>
+        <span class="psub">${esc(p.code)} · ${esc(unitName(p.unitId))} · လက်ကျန် ${qty(p.stock)}</span></span></button>`).join('')
+    : '<div class="hint" style="padding:12px">မတွေ့ပါ</div>';
+}
+
+function addItem(id) {
+  const p = find(id); if (!p) return;
+  let i = draft.items.findIndex(it => it.productId === id);
+  if (i >= 0) draft.items[i].qty = String(round3(n(draft.items[i].qty) + 1));
+  else { draft.items.push({ productId: id, qty: '1', cost: String(p.costPrice) }); i = draft.items.length - 1; }
+  G('find').value = ''; G('res').hidden = true; setErr('pitems', '');
+  renderItems();
+  const inp = G('items').querySelector(`.irow[data-i="${i}"] [data-f="qty"]`);
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+/* ---------- Items + totals ---------- */
+function renderItems() {
+  const box = G('items');
+  box.innerHTML = draft.items.length ? draft.items.map((it, i) => {
+    const p = find(it.productId);
+    return `<div class="irow" data-i="${i}">
+      <div class="ihead">${thumb(p, 'sm')}
+        <div class="iname"><div class="pname" style="font-size:16px">${esc(titleOf(p))}</div>
+          <div class="psub">${esc(unitName(p.unitId))} · လက်ကျန် ${qty(p.stock)}</div></div>
+        <button type="button" class="ibtn del" data-rm="${i}" aria-label="ဖယ်ရန်">${svg('trash', 20)}</button></div>
+      <div class="igrid">
+        <div class="field"><label>အရေအတွက်</label>
+          <input type="number" inputmode="decimal" min="0" step="any" data-f="qty" value="${esc(it.qty)}"></div>
+        <div class="field"><label>ဝယ်စျေး (ကျပ်)</label>
+          <input type="number" inputmode="numeric" min="0" step="1" data-f="cost" value="${esc(it.cost)}"></div>
+        <div class="field"><label>ကျသင့်ငွေ</label><div class="ltotal" data-lt>${money(lineOf(it))}</div></div>
+      </div></div>`;
+  }).join('') : `<div class="hint" style="margin-top:8px">ကုန်ပစ္စည်း မရှိသေးပါ။ အပေါ်တွင် ရှာဖွေ၍ ထည့်ပါ။</div>`;
+  updateTotals();
+}
+
+function updateTotals() {
+  const total = draft.items.reduce((a, it) => a + lineOf(it), 0);
+  G('total').textContent = money(total);
+  if (!draft.paidTouched) G('paid').value = total;
+  const paid = parsePrice(G('paid').value) ?? 0, due = total - paid;
+  G('due').textContent = money(Math.max(0, due));
+  G('due').classList.toggle('due', due > 0);
+  const h = G('phint'); h.className = 'hint'; h.style.marginTop = '8px'; h.textContent = '';
+  if (paid > total) { h.classList.add('warn'); h.textContent = 'ပေးပြီးငွေသည် စုစုပေါင်းထက် များနေသည်'; }
+  else if (due > 0) h.textContent = 'ကျန်ငွေကို အကြွေးအဖြစ် မှတ်ထားမည်';
+}
+
+function setErr(key, msg) {
+  const w = $('#w-' + key); if (!w) return;
+  w.classList.toggle('err', !!msg); const m = w.querySelector('.msg'); if (m) m.textContent = msg || '';
+}
+
+/* ---------- Form open / submit ---------- */
+function openForm() {
+  if (!S.products.some(p => p.active)) { toast('အရင်ဆုံး ကုန်ပစ္စည်း ထည့်ပါ'); return; }
+  draft = { items: [], paidTouched: false };
+  $('#puform').reset();
+  ['pdate', 'pitems', 'ppaid'].forEach(k => setErr(k, ''));
+  G('date').value = today();
+  G('updcost').checked = true;
+  G('suppliers').innerHTML = [...new Set(S.purchases.map(p => p.supplier).filter(Boolean))]
+    .map(v => `<option value="${esc(v)}">`).join('');
+  G('res').hidden = true;
+  renderItems();
+  $('#pudlg').showModal(); $('#pudlg .db').scrollTop = 0; G('find').focus();
+}
+
+async function submitForm(e) {
+  e.preventDefault();
+  const errs = {};
+  const date = G('date').value;
+  if (!date) errs.pdate = 'ရက်စွဲ ရွေးပါ';
+  if (!draft.items.length) errs.pitems = 'ကုန်ပစ္စည်း အနည်းဆုံး တစ်ခု ထည့်ပါ';
+  else if (draft.items.some(it => !(Number(it.qty) > 0))) errs.pitems = 'အရေအတွက်သည် 0 ထက် ကြီးရမည်';
+  else if (draft.items.some(it => String(it.cost).trim() === '' || !(Number(it.cost) >= 0))) errs.pitems = 'ဝယ်စျေး ထည့်ပါ (0 သို့မဟုတ် ပိုများရမည်)';
+  const total = draft.items.reduce((a, it) => a + lineOf(it), 0);
+  const paid = parsePrice(G('paid').value);
+  if (paid === null) errs.ppaid = 'ပေးပြီးငွေ ထည့်ပါ (မပေးရသေးလျှင် 0)';
+  else if (paid > total) errs.ppaid = 'ပေးပြီးငွေသည် စုစုပေါင်းထက် မများရပါ';
+  ['pdate', 'pitems', 'ppaid'].forEach(k => setErr(k, errs[k]));
+  const first = Object.keys(errs)[0];
+  if (first) {
+    const el = { pdate: G('date'), pitems: G('items').querySelector('input') || G('find'), ppaid: G('paid') }[first];
+    if (el) el.focus(); return;
+  }
+
+  const btn = $('#puSave'); btn.disabled = true;
+  const seqBefore = S.poSeq;
+  try {
+    const now = Date.now(), upd = G('updcost').checked;
+    const po = {
+      id: uid('po'), createdAt: now, no: nextNo(), date,
+      supplier: G('supplier').value.trim(), ref: G('ref').value.trim(), note: G('note').value.trim(),
+      items: draft.items.map(it => {
+        const p = find(it.productId);
+        return { productId: it.productId, name: titleOf(p), unit: unitName(p.unitId), qty: Number(it.qty), cost: Math.round(Number(it.cost)) };
+      }),
+      total, paid,
+    };
+    const changed = po.items.map(it => {
+      const p = find(it.productId);
+      const np = { ...p, stock: round3((p.stock || 0) + it.qty), updatedAt: now };
+      if (upd) np.costPrice = it.cost;
+      return np;
+    });
+    await commit({ put: po, products: changed });
+    changed.forEach(np => { const i = S.products.findIndex(p => p.id === np.id); if (i >= 0) S.products[i] = np; });
+    S.purchases.push(po);
+    $('#pudlg').close(); renderList(); toast('သိမ်းပြီးပါပြီ — လက်ကျန်စတော့ တိုးပြီးပါပြီ');
+  } catch (err) {
+    S.poSeq = seqBefore; console.error(err); toast('သိမ်း၍ မရပါ');
+  } finally { btn.disabled = false; }
+}
+
+/* ---------- List page ---------- */
+function mount() {
+  $('#content').innerHTML = `
+<div class="pg">
+  <div class="toolbar">
+    <label class="search">${svg('search', 20)}<input id="q" type="search" placeholder="ပြေစာအမှတ်၊ ပစ္စည်းသွင်းသူ၊ ကုန်ပစ္စည်းဖြင့် ရှာရန်" autocomplete="off"></label>
+    <button class="btn primary" id="puAdd">+ ဝယ်ယူမှုအသစ်</button>
+  </div>
+  <div class="count" id="puCount"></div>
+  <div id="puList"></div>
+</div>`;
+  $('#q').value = U.q;
+  $('#q').addEventListener('input', e => { U.q = e.target.value; renderList(); });
+  $('#puAdd').addEventListener('click', openForm);
+  $('#puList').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (b) act(b.dataset.act, b.dataset.id);
+  });
+  renderList();
+}
+
+function filtered() {
+  const q = norm(U.q.trim());
+  return S.purchases
+    .filter(p => !q || [p.no, p.supplier, p.ref, ...p.items.map(i => i.name)].some(v => norm(v).includes(q)))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+}
+
+const btns = p => [['view', 'eye', 'ကြည့်ရန်', ''], ['del', 'trash', 'ဖျက်ရန်', 'del']];
+const cardBtns = p => btns(p).map(([a, i, l, c]) =>
+  `<button class="abtn ${c}" data-act="${a}" data-id="${p.id}">${svg(i, 20)}<span>${l}</span></button>`).join('');
+const rowBtns = p => btns(p).map(([a, i, l, c]) =>
+  `<button class="ibtn ${c}" data-act="${a}" data-id="${p.id}" title="${l}" aria-label="${l}">${svg(i, 20)}</button>`).join('');
+const dueHtml = p => dueOf(p) > 0 ? `<span class="due">${money(dueOf(p))}</span>` : '<span class="chip">ပေးချေပြီး</span>';
+
+const cardHtml = p => `
+<article class="pcard">
+  <div><h3 class="pname">${esc(p.no)}</h3>
+    <div class="psub">${dmy(p.date)} · ${esc(p.supplier || 'ပစ္စည်းသွင်းသူ မသတ်မှတ်')}</div></div>
+  <dl class="kv">
+    <div><dt>ကုန်ပစ္စည်း</dt><dd>${p.items.length} မျိုး</dd></div>
+    <div><dt>စုစုပေါင်း</dt><dd>${money(p.total)}</dd></div>
+    <div><dt>ပေးပြီးငွေ</dt><dd>${money(p.paid)}</dd></div>
+    <div><dt>ကျန်ငွေ</dt><dd>${dueHtml(p)}</dd></div>
+  </dl>
+  <div class="acts" style="grid-template-columns:repeat(2,1fr)">${cardBtns(p)}</div>
+</article>`;
+
+const rowHtml = p => `
+<tr>
+  <td><div class="pname" style="font-size:16px">${esc(p.no)}</div>${p.ref ? `<div class="psub">${esc(p.ref)}</div>` : ''}</td>
+  <td>${dmy(p.date)}</td>
+  <td>${esc(p.supplier || '-')}</td>
+  <td class="num">${p.items.length} မျိုး</td>
+  <td class="num"><b>${money(p.total)}</b></td>
+  <td class="num">${money(p.paid)}</td>
+  <td class="num">${dueHtml(p)}</td>
+  <td class="ac"><div class="tact">${rowBtns(p)}</div></td>
+</tr>`;
+
+function renderList() {
+  const all = S.purchases, rows = filtered();
+  const list = $('#puList'), cnt = $('#puCount');
+  if (!all.length) {
+    cnt.textContent = '';
+    list.innerHTML = `<div class="empty"><div class="pimg">${svg('bag', 34)}</div>
+      <h3>ဝယ်ယူမှု မရှိသေးပါ</h3><p>ပထမဆုံး ဝယ်ယူမှုကို မှတ်တမ်းတင်ပါ။ လက်ကျန်စတော့ အလိုအလျောက် တိုးမည်။</p>
+      <div class="row"><button class="btn primary" data-act="add">+ ဝယ်ယူမှုအသစ်</button></div></div>`;
+    return;
+  }
+  const sum = rows.reduce((a, p) => a + p.total, 0), debt = rows.reduce((a, p) => a + dueOf(p), 0);
+  cnt.textContent = `ဝယ်ယူမှု ${rows.length} ခု · စုစုပေါင်း ${money(sum)}` + (debt ? ` · ကျန်ငွေ ${money(debt)}` : '');
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty"><h3>မတွေ့ပါ</h3><p>ရှာဖွေမှုနှင့် ကိုက်ညီသော ဝယ်ယူမှု မရှိပါ။</p></div>`;
+    return;
+  }
+  list.innerHTML = `
+  <div class="cards">${rows.map(cardHtml).join('')}</div>
+  <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>ပြေစာအမှတ်</th><th>ရက်စွဲ</th><th>ပစ္စည်းသွင်းသူ</th><th class="num">ကုန်ပစ္စည်း</th>
+      <th class="num">စုစုပေါင်း</th><th class="num">ပေးပြီးငွေ</th><th class="num">ကျန်ငွေ</th><th></th></tr></thead>
+    <tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`;
+}
+
+/* ---------- Actions ---------- */
+async function act(a, id) {
+  if (a === 'add') return openForm();
+  const po = S.purchases.find(p => p.id === id); if (!po) return;
+  if (a === 'view') return openView(po);
+  if (a === 'del') {
+    if (!await ask(`"${po.no}" ကို ဖျက်မလား? လက်ကျန်စတော့ကိုလည်း ပြန်လျှော့မည်။ ပြန်ယူ၍ မရနိုင်ပါ။`)) return;
+    const now = Date.now();
+    const changed = po.items.map(it => {
+      const p = find(it.productId);
+      return p ? { ...p, stock: round3((p.stock || 0) - it.qty), updatedAt: now } : null;
+    }).filter(Boolean);
+    try { await commit({ del: po.id, products: changed }); } catch (err) { console.error(err); return toast('ဖျက်၍ မရပါ'); }
+    changed.forEach(np => { const i = S.products.findIndex(p => p.id === np.id); if (i >= 0) S.products[i] = np; });
+    S.purchases.splice(S.purchases.indexOf(po), 1);
+    renderList(); toast('ဖျက်ပြီးပါပြီ');
+  }
+}
+
+function openView(po) {
+  viewId = po.id;
+  const due = dueOf(po);
+  $('#puvBody').innerHTML = `
+    <div class="detail-top"><div><h3 class="pname">${esc(po.no)}</h3>
+      <div style="margin-top:6px">${due > 0 ? '<span class="chip debt">အကြွေးကျန်</span>' : '<span class="chip">ပေးချေပြီး</span>'}</div></div></div>
+    <dl class="kv" style="margin-top:8px">
+      <div><dt>ရက်စွဲ</dt><dd>${dmy(po.date)}</dd></div>
+      <div><dt>ပစ္စည်းသွင်းသူ</dt><dd>${esc(po.supplier || '-')}</dd></div>
+      <div><dt>ရောင်းသူ၏ ပြေစာအမှတ်</dt><dd>${esc(po.ref || '-')}</dd></div>
+    </dl>
+    <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
+    ${po.items.map(it => `<div class="vrow"><div><div class="pname" style="font-size:16px">${esc(it.name)}</div>
+      <div class="psub">${qty(it.qty)} ${esc(it.unit || '')} × ${money(it.cost)}</div></div>
+      <b>${money(Math.round(it.qty * it.cost))}</b></div>`).join('')}
+    <div class="tot">
+      <div class="grand"><span>စုစုပေါင်း</span><span>${money(po.total)}</span></div>
+      <div><span>ပေးပြီးငွေ</span><span>${money(po.paid)}</span></div>
+      <div><span>ကျန်ငွေ</span><span class="${due > 0 ? 'due' : ''}">${money(due)}</span></div>
+    </div>
+    ${po.note ? `<div class="detail-desc">${esc(po.note)}</div>` : ''}`;
+  $('#puview').showModal();
+}
+
+/* ---------- Routing hook (chains onto the products one) ---------- */
+window.showPage = async function (id, label) {
+  titleEl.textContent = 'ဝယ်ယူမှု';
+  await ready;
+  const content = $('#content');
+  if (window.POS.storeError()) {
+    content.innerHTML = `<div class="empty"><h3>ဒေတာသိမ်းစနစ် မဖွင့်နိုင်ပါ</h3>
+      <p>Chrome သို့မဟုတ် Edge ဖြင့် ဖွင့်ပါ။ (Private/Incognito mode တွင် အလုပ်မလုပ်နိုင်ပါ)</p></div>`;
+    return;
+  }
+  window.POS.ensureShared(); ensureDlgs(); mount();
+  if (id === 'purchase/new') openForm();
+};
+})();
+</script>
+<script>
+/* Runs last on every page: opens the right page + highlights the menu */
+(() => {
+  const q = new URLSearchParams(location.search);
+  let id = document.body.dataset.page || 'summary';
+  let label = document.body.dataset.title || 'အနှစ်ချုပ်';
+  if (q.get('p')) { id = q.get('p'); label = q.get('t') || label; }
+  if (q.get('new')) id = id.split('/')[0] + '/new';
+  const parent = id.split('/')[0];                       // open the submenu that holds the active item
+  const sub = drawer.querySelector(`.sub[data-parent="${CSS.escape(parent)}"]`);
+  if (sub) {
+    sub.classList.add('open');
+    const head = sub.previousElementSibling;
+    if (head) { head.classList.add('open'); head.setAttribute('aria-expanded', 'true'); }
+  }
+  setActive(id, label);
+})();
+</script>
+</body>
+</html>
