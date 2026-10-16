@@ -526,7 +526,7 @@ drawer.addEventListener('click', e => {
 const ROUTES = {
   'products/list': 'products.html', 'products/new': 'products.html?new=1',
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
-  'summary': 'index.html',
+  'summary': 'index.html', 'retail': 'retail.html',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -606,10 +606,10 @@ const idb = {
   db: null,
   open() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('pos-db', 2);
+      const r = indexedDB.open('pos-db', 3);
       r.onupgradeneeded = () => {
         const db = r.result;
-        ['products', 'categories', 'units', 'meta', 'purchases'].forEach(n => {
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
           if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, { keyPath: 'id' });
         });
       };
@@ -647,7 +647,7 @@ const DEFAULT_UNITS = [
   { name: 'ပေါင်', group: 'weight' }, { name: 'ကီလို', group: 'weight' }, { name: 'လီတာ' },
 ].map((u, i) => ({ id: 'u' + (i + 1), group: 'count', ...u }));
 
-const S = { products: [], categories: [], units: [], purchases: [], seq: 0, poSeq: 0 };
+const S = { products: [], categories: [], units: [], purchases: [], sales: [], seq: 0, poSeq: 0 };
 let storeError = null;
 
 async function initStore() {
@@ -657,6 +657,7 @@ async function initStore() {
   S.units      = await idb.all('units');
   const meta = await idb.all('meta');
   S.purchases  = await idb.all('purchases');
+  S.sales      = await idb.all('sales');
   S.seq = (meta.find(m => m.id === 'seq') || {}).value || 0;
   S.poSeq = (meta.find(m => m.id === 'poSeq') || {}).value || 0;
   if (!meta.some(m => m.id === 'seeded')) {
@@ -1025,6 +1026,9 @@ async function act(a, id) {
     toast(n.active ? 'ဖွင့်ပြီးပါပြီ' : 'ရပ်ဆိုင်းပြီးပါပြီ');
   }
   if (a === 'del') {
+    const used = S.purchases.some(o => (o.items || []).some(it => it.productId === p.id)) ||
+                 S.sales.some(o => (o.items || []).some(it => it.productId === p.id));
+    if (used) return toast('ဝယ်ယူ/ရောင်းချမှု မှတ်တမ်းရှိသောကြောင့် ဖျက်၍မရပါ — ရပ်ဆိုင်းထားပါ');
     if (!await ask(`"${titleOf(p)}" ကို ဖျက်မလား? ပြန်ယူ၍ မရနိုင်ပါ။`)) return;
     try { await idb.del('products', p.id); } catch { return toast('ဖျက်၍ မရပါ'); }
     S.products.splice(S.products.indexOf(p), 1); renderList(); toast('ဖျက်ပြီးပါပြီ');

@@ -526,7 +526,7 @@ drawer.addEventListener('click', e => {
 const ROUTES = {
   'products/list': 'products.html', 'products/new': 'products.html?new=1',
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
-  'summary': 'index.html',
+  'summary': 'index.html', 'retail': 'retail.html',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -606,10 +606,10 @@ const idb = {
   db: null,
   open() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('pos-db', 2);
+      const r = indexedDB.open('pos-db', 3);
       r.onupgradeneeded = () => {
         const db = r.result;
-        ['products', 'categories', 'units', 'meta', 'purchases'].forEach(n => {
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
           if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, { keyPath: 'id' });
         });
       };
