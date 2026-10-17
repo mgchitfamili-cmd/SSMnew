@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#7c3aed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>POS – အစီရင်ခံစာ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #7c3aed;
+    --accent-soft: #ede9fe;
+    --ink: #1f2937;
+    --muted: #9ca3af;
+    --line: #e5e7eb;
+    --surface: #ffffff;
+    --page: #f3f4f8;
+    --drawer-w: min(320px, 86vw);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #a78bfa;
+      --accent-soft: #2e2457;
+      --ink: #e5e7eb;
+      --muted: #6b7280;
+      --line: #2b2f3a;
+      --surface: #171a22;
+      --page: #0f1117;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Noto Sans Myanmar", "Padauk", system-ui, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    line-height: 1.6;
+    overflow: hidden;
+  }
+
+  /* ---------- Top bar + main ---------- */
+  .app { height: 100%; display: flex; flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: calc(var(--safe-top) + 8px) 12px 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .icon-btn {
+    width: 44px; height: 44px; border: 0; border-radius: 12px;
+    background: transparent; color: var(--ink);
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .icon-btn:active { background: var(--accent-soft); }
+  .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  main { flex: 1; overflow: auto; padding: 20px; }
+  main p { color: var(--muted); margin: 4px 0 0; }
+
+  /* ---------- Drawer ---------- */
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(15, 17, 23, .5);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+    z-index: 40;
+  }
+  .drawer {
+    position: fixed; top: 0; bottom: 0; left: 0;
+    width: var(--drawer-w);
+    background: var(--surface);
+    transform: translateX(-100%);
+    transition: transform .28s cubic-bezier(.3, .8, .3, 1);
+    z-index: 50;
+    overflow-y: auto; overscroll-behavior: contain;
+    padding: calc(var(--safe-top) + 12px) 0 calc(var(--safe-bottom) + 24px);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, .15);
+  }
+  body.menu-open .drawer { transform: none; }
+  body.menu-open .backdrop { opacity: 1; pointer-events: auto; }
+  body.dragging .drawer, body.dragging .backdrop { transition: none; }
+
+  .group-title {
+    margin: 18px 20px 6px; font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .group-title:first-child { margin-top: 8px; }
+
+  .item {
+    display: flex; align-items: center; gap: 16px;
+    width: calc(100% - 24px); margin: 0 12px;
+    min-height: 48px; padding: 0 12px;
+    border: 0; border-radius: 12px; background: transparent;
+    font: inherit; font-size: 16px; color: var(--ink); text-align: left;
+    cursor: pointer;
+  }
+  .item:active { background: var(--accent-soft); }
+  .item svg { flex: none; }
+  .item .label { flex: 1; }
+  .item .chev { transition: transform .2s; color: var(--ink); }
+  .item.open .chev { transform: rotate(180deg); }
+  .item.active { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+  .item.disabled { color: var(--muted); }
+  .item.disabled .chev { color: var(--muted); }
+
+  .sub { display: none; margin: 0 12px 4px 56px; border-left: 2px solid var(--line); }
+  .sub.open { display: block; }
+  .sub .item { width: 100%; margin: 0; min-height: 42px; font-size: 15px; padding-left: 16px; }
+
+  /* Wide screens (iPad landscape): menu stays visible */
+  @media (min-width: 1024px) {
+    .drawer { transform: none; box-shadow: none; border-right: 1px solid var(--line); }
+    .backdrop { display: none; }
+    .app { margin-left: var(--drawer-w); }
+    #menuBtn { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .drawer, .backdrop, .item .chev { transition: none; }
+  }
+
+  /* =====================================================
+     ကုန်ပစ္စည်း (Products) page
+     ===================================================== */
+  :root {
+    --on-accent: #ffffff;
+    --danger: #dc2626;
+    --danger-soft: #fee2e2;
+    --warn: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --on-accent: #1b1033;
+      --danger: #f87171;
+      --danger-soft: #3b1c1c;
+      --warn: #fbbf24;
+    }
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .pg { max-width: 1240px; margin: 0 auto; }
+
+  /* Buttons */
+  .btn {
+    min-height: 44px; padding: 0 18px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 15px; font-weight: 500; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    white-space: nowrap;
+  }
+  .btn:active { background: var(--accent-soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .btn.primary:active { filter: brightness(.92); }
+  .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+  .btn.small { min-height: 40px; padding: 0 14px; }
+  @media (hover: hover) {
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary:hover { filter: brightness(1.06); }
+  }
+  .badge {
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+    background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700;
+    display: inline-grid; place-items: center;
+  }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+  .search {
+    flex: 1 1 100%; display: flex; align-items: center; gap: 10px;
+    min-height: 46px; padding: 0 14px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  }
+  .search:focus-within { border-color: var(--accent); }
+  .search input {
+    flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+    font: inherit; font-size: 15px; color: var(--ink); height: 44px;
+  }
+  .toolbar .btn { flex: 1 1 0; }
+  @media (min-width: 700px) {
+    .search { flex: 1 1 320px; }
+    .toolbar .btn { flex: 0 0 auto; }
+  }
+  .filters {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+    margin-top: 12px; padding: 14px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line);
+  }
+  .filters[hidden] { display: none; }
+  .filters .reset { align-self: end; }
+  .count { margin: 14px 2px 10px; font-size: 14px; color: var(--muted); }
+
+  /* Form controls */
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field > label, .flabel { font-size: 14px; font-weight: 500; }
+  .field .req { color: var(--danger); margin-left: 3px; }
+  .field input[type=text], .field input[type=number], .field select, .field textarea, .addrow input {
+    width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 15px;
+  }
+  .field textarea { min-height: 96px; padding: 10px 14px; resize: vertical; }
+  .field input:focus, .field select:focus, .field textarea:focus, .addrow input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field .help { font-size: 13px; color: var(--muted); }
+  .field .msg { font-size: 13px; color: var(--danger); display: none; }
+  .field.err input, .field.err select { border-color: var(--danger); }
+  .field.err .msg { display: block; }
+  .linkbtn {
+    align-self: flex-start; border: 0; background: none; padding: 4px 0; cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 500; color: var(--accent); text-decoration: underline;
+  }
+  .addrow { display: flex; gap: 8px; }
+  .addrow[hidden] { display: none; }
+  .addrow input { flex: 1; }
+  .check { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; cursor: pointer; }
+  .check input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+
+  /* Product visual */
+  .pimg {
+    width: 76px; height: 76px; flex: none; border-radius: 16px; overflow: hidden;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--line); display: grid; place-items: center;
+  }
+  .pimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pimg.sm { width: 48px; height: 48px; border-radius: 12px; }
+  .pimg.lg { width: 112px; height: 112px; border-radius: 20px; }
+
+  /* Narrow screens: cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .pcard {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .pcard.off { background: var(--page); }
+  .phead { display: flex; gap: 14px; align-items: center; }
+  .pname { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.45; }
+  .psub { font-size: 14px; color: var(--muted); }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0; }
+  .kv dt { font-size: 13px; color: var(--muted); }
+  .kv dd { margin: 0; font-size: 16px; font-weight: 600; }
+  .chip {
+    display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: 13px; font-weight: 500;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .chip.off { background: var(--line); color: var(--muted); }
+  .acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .abtn {
+    min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+    color: var(--ink); font: inherit; font-size: 13px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .abtn:active { background: var(--accent-soft); }
+  .abtn.del { color: var(--danger); }
+
+  /* Wide screens (Windows): table */
+  .tbl-wrap { display: none; }
+  @media (min-width: 900px) {
+    .cards { display: none; }
+    .tbl-wrap { display: block; }
+  }
+  .tbl {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
+  }
+  .tbl th {
+    text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);
+    padding: 12px 14px; background: var(--page); border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  .tbl td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .tbl tbody tr:first-child td { border-top: 0; }
+  .tbl .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tbl tr.off td:not(.st):not(.ac) > * { opacity: .55; }
+  .tcell { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+  .tcell .pname { font-size: 16px; }
+  .tcell .psub { font-size: 13px; }
+  .tact { display: flex; gap: 6px; justify-content: flex-end; }
+  .ibtn {
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid transparent; background: transparent;
+    color: var(--ink); display: grid; place-items: center; cursor: pointer;
+  }
+  .ibtn:active, .ibtn:hover { background: var(--accent-soft); }
+  .ibtn.del { color: var(--danger); }
+  .ibtn.del:hover { background: var(--danger-soft); }
+  @media (hover: hover) { .tbl tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); } }
+
+  /* Empty state */
+  .empty {
+    text-align: center; padding: 56px 20px; border-radius: 18px;
+    border: 1px dashed var(--line); background: var(--surface);
+  }
+  .empty .pimg { margin: 0 auto 14px; width: 72px; height: 72px; }
+  .empty h3 { margin: 0 0 6px; font-size: 18px; }
+  .empty p { margin: 0 0 18px; color: var(--muted); }
+  .empty .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* Dialogs */
+  dialog.dlg {
+    padding: 0; border: 0; border-radius: 20px; color: var(--ink); background: var(--surface);
+    width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .3);
+  }
+  dialog.dlg.narrow { width: min(420px, calc(100vw - 32px)); }
+  dialog.dlg[open] { display: flex; flex-direction: column; }
+  dialog.dlg::backdrop { background: rgba(15, 17, 23, .55); }
+  .dh {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 12px 10px 22px; border-bottom: 1px solid var(--line); flex: none;
+  }
+  .dh h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .db { padding: 6px 22px 20px; overflow-y: auto; flex: 1; overscroll-behavior: contain; }
+  .df {
+    display: flex; gap: 10px; padding: 12px 22px calc(12px + var(--safe-bottom));
+    border-top: 1px solid var(--line); flex: none;
+  }
+  .df .btn { flex: 1; }
+  @media (min-width: 640px) { .df { justify-content: flex-end; } .df .btn { flex: 0 0 auto; min-width: 140px; } }
+  @media (max-width: 639px) {
+    dialog.dlg:not(.narrow) {
+      width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; margin: 0;
+    }
+  }
+  .sec {
+    margin: 22px 0 14px; padding-bottom: 8px; font-size: 16px; font-weight: 700; color: var(--accent);
+    border-bottom: 2px solid var(--accent-soft);
+  }
+  .sec:first-child { margin-top: 14px; }
+  .fg { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 640px) { .fg { grid-template-columns: 1fr 1fr; } .fg .full { grid-column: 1 / -1; } }
+  .imgrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .hint { font-size: 13px; color: var(--muted); min-height: 20px; }
+  .hint.warn { color: var(--warn); }
+  .detail-top { display: flex; gap: 16px; align-items: center; margin: 16px 0 8px; }
+  .detail-top .pname { font-size: 20px; }
+  .detail-desc { margin: 14px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--page); white-space: pre-wrap; }
+  .confirm-text { margin: 20px 0 6px; font-size: 16px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; bottom: calc(var(--safe-bottom) + 24px); transform: translate(-50%, 20px);
+    background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 12px;
+    font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* =====================================================
+     ဝယ်ယူမှု (Purchase) page
+     ===================================================== */
+  .field input[type=date] {
+    width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: 15px;
+  }
+  .field input[type=date]:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .pickres { margin-top: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+  .pickres[hidden] { display: none; }
+  .pick {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px;
+    border: 0; border-top: 1px solid var(--line); background: transparent;
+    font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+  }
+  .pick:first-child { border-top: 0; }
+  .pick:active, .pick:hover { background: var(--accent-soft); }
+  .irow { border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-top: 10px; background: var(--surface); }
+  .ihead { display: flex; align-items: center; gap: 12px; }
+  .ihead .iname { flex: 1; min-width: 0; }
+  .igrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .igrid .field:last-child { grid-column: 1 / -1; }
+  @media (min-width: 640px) { .igrid { grid-template-columns: 1fr 1fr 1fr; } .igrid .field:last-child { grid-column: auto; } }
+  .ltotal { min-height: 46px; display: flex; align-items: center; font-weight: 600; font-size: 16px; }
+  .tot { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--page); display: grid; gap: 6px; }
+  .tot > div { display: flex; justify-content: space-between; gap: 12px; }
+  .tot .grand { font-size: 18px; font-weight: 700; }
+  .vrow { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .due { color: var(--danger); font-weight: 600; }
+  .chip.debt { background: var(--danger-soft); color: var(--danger); }
+
+  /* ---------- အစီရင်ခံစာ (Reports) ---------- */
+  :root { --ok: #15803d; }
+  @media (prefers-color-scheme: dark) { :root { --ok: #4ade80; } }
+  .pos { color: var(--ok); }
+  .neg { color: var(--danger); }
+  .rp-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .rp-chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 auto; }
+  .rp-chips button {
+    min-height: 40px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px;
+  }
+  .rp-chips button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .rp-dates { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .rp-dates[hidden] { display: none; }
+  .rp-dates input[type=date] {
+    flex: 1 1 140px; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 15px;
+  }
+  .rp-select {
+    flex: 1 1 0; min-width: 0; min-height: 46px; padding: 0 12px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 15px;
+  }
+  .rp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .rp-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+  .rp-sl { font-size: 13px; color: var(--muted); }
+  .rp-sv { font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .rp-list { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 0 14px; }
+  .rp-list .vrow:first-child { border-top: 0; }
+  .rp-l { min-width: 0; }
+  .rp-r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .rp-break { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); overflow: hidden; }
+  .rp-b {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 14px;
+    border-top: 1px solid var(--line);
+    background: linear-gradient(to right, var(--accent-soft) var(--p, 0%), transparent var(--p, 0%));
+  }
+  .rp-b:first-child { border-top: 0; }
+  .rp-b b { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .tot span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+  @media print {
+    .topbar, .drawer, .backdrop, .rp-bar, .rp-dates, .toolbar, .toast { display: none !important; }
+    html, body, .app, main { height: auto !important; overflow: visible !important; }
+    .app { margin-left: 0 !important; }
+    .cards { display: none !important; } .tbl-wrap { display: block !important; }
+  }
+
+</style>
+</head>
+<body data-page="r-sales/view" data-title="ရောင်းချမှု အစီရင်ခံစာ">
+
+<div class="app">
+  <header class="topbar">
+    <button class="icon-btn" id="menuBtn" aria-label="မီနူး ဖွင့်ရန်">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <h1 id="pageTitle">အစီရင်ခံစာ</h1>
+  </header>
+  <main id="content"></main>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+<nav class="drawer" id="drawer" aria-label="အဓိက မီနူး"></nav>
+
+<script>
+/* ---------- Icons (24x24, stroke) ---------- */
+const ICONS = {
+  grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>',
+  cart: '<circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M2 3h3l2.7 11.4a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L21 7H6"/>',
+  truck: '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+  userPlus: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/>',
+  building: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+  store: '<path d="M3 12l3-8h12l3 8v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 12h5l1 3h6l1-3h5"/>',
+  wallet: '<path d="M3 7a2 2 0 0 1 2-2h13v4"/><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 13.5h2"/>',
+  plusCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  box: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
+  bag: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  percent: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+  bars: '<path d="M3 3v18h18"/><path d="M8 17v-5M12 17V8M16 17v-3M20 17v-7"/>',
+  swap: '<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
+  gear: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>',
+  dollar: '<path d="M12 2v20M17 6.5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  minusCircle: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  card: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  fileX: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M10 12.5l4 4M14 12.5l-4 4"/>',
+  fileIn: '<path d="M14 3H7a2 2 0 0 0-2 2v6M14 3l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2"/><path d="M2 14h9M8 11l3 3-3 3"/>',
+  fileOut: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 14h6M13 11l3 3-3 3"/>',
+  list: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  printer: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  chevron: '<path d="M6 9l6 6 6-6"/>'
+};
+const svg = (name, size = 24) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+/* ---------- Menu data ----------
+   sub: true  -> expandable (children are placeholders, replace later)
+   off: true  -> greyed out (feature not enabled)                    */
+const LIST_SUB = [{ id: 'list', label: 'စာရင်း' }, { id: 'new', label: 'အသစ်ထည့်ရန်' }];
+const VIEW_SUB = [{ id: 'view', label: 'ကြည့်ရန်' }];
+
+const MENU = [
+  { title: 'မူလစာမျက်နှာ', items: [
+    { id: 'summary',  label: 'အနှစ်ချုပ်',      icon: 'grid' },
+    { id: 'retail',   label: 'လက်လီအရောင်း',   icon: 'cart' },
+    { id: 'wholesale',label: 'လက်ကားအရောင်း',  icon: 'truck', off: true },
+  ]},
+  { title: 'အဓိက', items: [
+    { id: 'users',     label: 'အသုံးပြုသူ',          icon: 'users' },
+    { id: 'customers', label: 'ဖောက်သည်',           icon: 'userPlus' },
+    { id: 'suppliers', label: 'ပစ္စည်းသွင်းသူ',       icon: 'building' },
+    { id: 'accounts',  label: 'ငွေအကောင့်',          icon: 'wallet' },
+    { id: 'products',  label: 'ကုန်ပစ္စည်း',          icon: 'box', sub: LIST_SUB },
+    { id: 'purchase',  label: 'ဝယ်ယူမှု',            icon: 'bag', sub: LIST_SUB },
+    { id: 'pricing',   label: 'ရောင်းစျေးနှင့် လျှော့စျေး', icon: 'percent' },
+    { id: 'sales',     label: 'ရောင်းချမှု',          icon: 'chart', sub: LIST_SUB },
+    { id: 'adjust',    label: 'စာရင်းညှိ',            icon: 'gear', sub: LIST_SUB },
+    { id: 'expense',   label: 'အသုံးစရိတ်',          icon: 'minusCircle', sub: LIST_SUB },
+    { id: 'debt',      label: 'အကြွေး ပေးချေမှု',     icon: 'card', sub: LIST_SUB },
+  ]},
+  { title: 'အစီရင်ခံစာ', items: [
+    { id: 'r-purchase', label: 'ဝယ်ယူမှု အစီရင်ခံစာ',     icon: 'file', sub: VIEW_SUB },
+    { id: 'r-sales',    label: 'ရောင်းချမှု အစီရင်ခံစာ',   icon: 'file', sub: VIEW_SUB },
+    { id: 'r-cash',     label: 'အဝင်အထွက် အစီရင်ခံစာ',   icon: 'fileX', sub: VIEW_SUB },
+    { id: 'r-adjust',   label: 'စာရင်းညှိ အစီရင်ခံစာ',    icon: 'fileIn', sub: VIEW_SUB },
+    { id: 'r-loan',     label: 'လည်ချာ အစီရင်ခံစာ',       icon: 'list', sub: VIEW_SUB, off: true },
+    { id: 'r-summary',  label: 'အနှစ်ချုပ်',              icon: 'list', sub: VIEW_SUB, off: true },
+    { id: 'r-stock',    label: 'ပစ္စည်းစာရင်း အစီရင်ခံစာ',  icon: 'list' },
+    { id: 'r-profit',   label: 'ရောင်းချမှု အမြတ်',        icon: 'chart' },
+    { id: 'r-expense',  label: 'အသုံးစရိတ် အစီရင်ခံစာ',    icon: 'minusCircle' },
+    { id: 'r-income',   label: 'ဝင်ငွေ အစီရင်ခံစာ',        icon: 'bars', off: true },
+    { id: 'r-trade',    label: 'ကုန်သွယ်မှု အစီရင်ခံစာ',   icon: 'list', off: true },
+  ]},
+  { title: 'ပြင်ဆင်မှု', items: [
+    { id: 's-print',    label: 'ပရင့်ဆက်တင်',   icon: 'printer' },
+  ]},
+];
+
+/* ---------- Build drawer ---------- */
+const drawer = document.getElementById('drawer');
+const titleEl = document.getElementById('pageTitle');
+let activeId = 'summary';
+
+function render() {
+  drawer.innerHTML = MENU.map(g => `
+    <div class="group-title">${g.title}</div>
+    ${g.items.map(it => `
+      <button class="item ${it.off ? 'disabled' : ''} ${it.id === activeId ? 'active' : ''}"
+              data-id="${it.id}" ${it.sub ? 'data-sub="1" aria-expanded="false"' : ''}>
+        ${svg(it.icon)}
+        <span class="label">${it.label}</span>
+        ${it.sub ? `<span class="chev">${svg('chevron', 20)}</span>` : ''}
+      </button>
+      ${it.sub ? `<div class="sub" data-parent="${it.id}">
+        ${it.sub.map(c => `<button class="item" data-id="${it.id}/${c.id}" data-label="${c.label}">
+          <span class="label">${c.label}</span></button>`).join('')}
+      </div>` : ''}
+    `).join('')}
+  `).join('');
+}
+
+function setActive(id, label) {
+  activeId = id;
+  titleEl.textContent = label;
+  window.showPage(id, label);
+  drawer.querySelectorAll('.item.active').forEach(el => el.classList.remove('active'));
+  const el = drawer.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  if (el) el.classList.add('active');
+  if (window.matchMedia('(max-width: 1023px)').matches) closeMenu();
+}
+
+drawer.addEventListener('click', e => {
+  const btn = e.target.closest('.item');
+  if (!btn) return;
+  if (btn.dataset.sub) {                       // expand / collapse
+    const sub = drawer.querySelector(`.sub[data-parent="${btn.dataset.id}"]`);
+    const open = sub.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open);
+    return;
+  }
+  const label = btn.dataset.label || btn.querySelector('.label').textContent;
+  go(btn.dataset.id, label);
+});
+
+/* ---------- Multi-page navigation ---------- */
+const ROUTES = {
+  'products/list': 'products.html', 'products/new': 'products.html?new=1',
+  'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
+  'summary': 'index.html', 'retail': 'retail.html',
+  'sales/list': 'sales.html', 'sales/new': 'retail.html',
+  'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
+  'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
+  'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
+  'customers': 'customers.html', 'suppliers': 'suppliers.html',
+  'r-purchase/view': 'reports.html?p=r-purchase%2Fview', 'r-sales/view': 'reports.html?p=r-sales%2Fview', 'r-cash/view': 'reports.html?p=r-cash%2Fview', 'r-adjust/view': 'reports.html?p=r-adjust%2Fview', 'r-stock': 'reports.html?p=r-stock', 'r-profit': 'reports.html?p=r-profit', 'r-expense': 'reports.html?p=r-expense',
+};
+function go(id, label) {
+  const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
+  const here = location.pathname.split('/').pop() || 'index.html';
+  if (target.split('?')[0] === here) setActive(id, label);   // same page: no reload
+  else location.href = target;
+}
+
+/* default page body (pages that have a real module overwrite showPage) */
+window.showPage = function () {
+  document.getElementById('content').innerHTML = '<p>ဒီနေရာမှာ စာမျက်နှာ အကြောင်းအရာ ထည့်ပါမယ်။</p>';
+};
+
+/* ---------- Open / close ---------- */
+const openMenu  = () => document.body.classList.add('menu-open');
+const closeMenu = () => document.body.classList.remove('menu-open');
+document.getElementById('menuBtn').addEventListener('click', openMenu);
+document.getElementById('backdrop').addEventListener('click', closeMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+
+/* ---------- Swipe: open from left edge, close by swiping left ---------- */
+const DRAWER_W = () => drawer.getBoundingClientRect().width || 300;
+let startX = 0, startY = 0, dx = 0, mode = null;
+
+document.addEventListener('touchstart', e => {
+  if (window.matchMedia('(min-width: 1024px)').matches) return;
+  const t = e.touches[0];
+  startX = t.clientX; startY = t.clientY; dx = 0; mode = null;
+  const isOpen = document.body.classList.contains('menu-open');
+  if (!isOpen && startX < 20) mode = 'open';
+  else if (isOpen) mode = 'close';
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!mode) return;
+  const t = e.touches[0];
+  dx = t.clientX - startX;
+  if (Math.abs(t.clientY - startY) > Math.abs(dx) && !document.body.classList.contains('dragging')) { mode = null; return; }
+  document.body.classList.add('dragging');
+  const w = DRAWER_W();
+  const x = mode === 'open' ? Math.min(0, -w + dx) : Math.min(0, dx);
+  drawer.style.transform = `translateX(${x}px)`;
+  document.getElementById('backdrop').style.opacity = String(1 + x / w);
+  document.getElementById('backdrop').style.pointerEvents = 'auto';
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (!mode) return;
+  document.body.classList.remove('dragging');
+  drawer.style.transform = '';
+  const bd = document.getElementById('backdrop');
+  bd.style.opacity = ''; bd.style.pointerEvents = '';
+  if (mode === 'open' && dx > 80) openMenu();
+  if (mode === 'close' && dx < -80) closeMenu();
+  mode = null;
+});
+
+render();
+</script>
+<script>
+/* Shared data layer + helpers (used by products.js and purchase.js) */
+(() => {
+Object.assign(ICONS, {
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  filter: '<path d="M4 7h16M7 12h10M10 17h4"/>',
+  plus:   '<path d="M12 5v14M5 12h14"/>',
+  eye:    '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  edit:   '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  power:  '<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
+  trash:  '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  x:      '<path d="M6 6l12 12M18 6L6 18"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+});
+
+
+const idb = {
+  db: null,
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('pos-db', 5);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales', 'expenses', 'adjustments', 'customers', 'suppliers'].forEach(n => {
+          if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, { keyPath: 'id' });
+        });
+      };
+      r.onsuccess = () => { this.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  all(n) {
+    return new Promise((res, rej) => {
+      const q = this.db.transaction(n).objectStore(n).getAll();
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    });
+  },
+  put(n, o) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(n, 'readwrite'); t.objectStore(n).put(o);
+      t.oncomplete = () => res(o); t.onerror = () => rej(t.error);
+    });
+  },
+  del(n, id) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(n, 'readwrite'); t.objectStore(n).delete(id);
+      t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+    });
+  },
+};
+
+/* ---------- Defaults (categories & units are editable by the user) ---------- */
+const DEFAULT_CATEGORIES = ['ကလေးသုံးပစ္စည်း', 'အစားအသောက်', 'အိမ်သုံးပစ္စည်း', 'အလှကုန်']
+  .map((name, i) => ({ id: 'c' + (i + 1), name }));
+// group 'weight' + ratio: 1 ပိဿာ = 100 ကျပ်သား (base weight unit = ကျပ်သား)
+const DEFAULT_UNITS = [
+  { name: 'ခု' }, { name: 'ထုပ်' }, { name: 'အထုပ်' }, { name: 'ဘူး' }, { name: 'ဗူး' }, { name: 'ဒါဇင်' },
+  { name: 'ပိဿာ', group: 'weight', ratio: 100 }, { name: 'ကျပ်သား', group: 'weight', ratio: 1 },
+  { name: 'ပေါင်', group: 'weight' }, { name: 'ကီလို', group: 'weight' }, { name: 'လီတာ' },
+].map((u, i) => ({ id: 'u' + (i + 1), group: 'count', ...u }));
+
+const S = { products: [], categories: [], units: [], purchases: [], seq: 0, poSeq: 0 };
+let storeError = null;
+
+async function initStore() {
+  await idb.open();
+  S.products   = await idb.all('products');
+  S.categories = await idb.all('categories');
+  S.units      = await idb.all('units');
+  const meta = await idb.all('meta');
+  S.purchases  = await idb.all('purchases');
+  S.seq = (meta.find(m => m.id === 'seq') || {}).value || 0;
+  S.poSeq = (meta.find(m => m.id === 'poSeq') || {}).value || 0;
+  if (!meta.some(m => m.id === 'seeded')) {
+    for (const c of DEFAULT_CATEGORIES) { await idb.put('categories', c); S.categories.push(c); }
+    for (const u of DEFAULT_UNITS)      { await idb.put('units', u);      S.units.push(u); }
+    await idb.put('meta', { id: 'seeded', value: 1 });
+  }
+}
+const ready = initStore().catch(err => { storeError = err; console.error(err); });
+
+/* ---------- Helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const F = id => document.getElementById('f-' + id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => Number(n).toLocaleString('en-US') + ' ကျပ်';
+const norm = s => String(s ?? '').toLowerCase();
+const qty = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const catName  = id => (S.categories.find(c => c.id === id) || {}).name || '-';
+const unitName = id => (S.units.find(u => u.id === id) || {}).name || '-';
+const titleOf = p => p.nameMm || p.name;
+const subOf   = p => (p.nameMm ? p.name : '');
+const find = id => S.products.find(p => p.id === id);
+const parsePrice = x => {
+  const s = String(x ?? '').trim(); if (s === '') return null;
+  const n = Number(s); return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+};
+const thumb = (p, cls = '') =>
+  `<div class="pimg ${cls}">${p.image ? `<img src="${p.image}" alt="">` : svg('box', cls === 'sm' ? 22 : cls === 'lg' ? 44 : 34)}</div>`;
+
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function fileToThumb(file, max = 240) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const r = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', .78));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('image')); };
+    img.src = url;
+  });
+}
+
+
+/* ---------- Shared dialogs (confirm + toast + close buttons) ---------- */
+function ensureShared() {
+  if ($('#cdlg')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+<dialog class="dlg narrow" id="cdlg">
+  <form method="dialog">
+    <div class="db"><p class="confirm-text" id="cText"></p></div>
+    <div class="df">
+      <button class="btn" value="no">မလုပ်တော့ပါ</button>
+      <button class="btn danger" value="ok" id="cOk">ဖျက်မည်</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status"></div>`);
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-close]'); if (b) b.closest('dialog').close();
+  });
+}
+
+function ask(text, okLabel = 'ဖျက်မည်') {
+  return new Promise(res => {
+    const d = $('#cdlg'); $('#cText').textContent = text; $('#cOk').textContent = okLabel;
+    d.returnValue = ''; d.addEventListener('close', () => res(d.returnValue === 'ok'), { once: true });
+    d.showModal();
+  });
+}
+
+
+window.POS = { idb, S, ready, storeError: () => storeError, ensureShared,
+  $, F, esc, money, qty, uid, norm, toast, ask, thumb, titleOf, subOf, find, parsePrice,
+  catName, unitName, fileToThumb, DEFAULT_UNITS };
+})();
+</script>
+<script>
+/* အစီရင်ခံစာ (Reports) page — needs the shared data layer above */
+(() => {
+const { idb, S, ready, $, esc, money, qty, norm, thumb, titleOf, catName, unitName } = window.POS;
+
+const pad = n => String(n).padStart(2, '0');
+const ymdOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const ymd = ts => ymdOf(new Date(ts));
+const todayS = () => ymdOf(new Date());
+const dmy = s => (s ? s.split('-').reverse().join('/') : '-');
+const sum = (arr, f) => arr.reduce((a, x) => a + f(x), 0);
+const signed = d => (d > 0 ? '+' : d < 0 ? '−' : '') + qty(Math.abs(d));
+const signedMoney = d => (d < 0 ? '− ' : '') + money(Math.abs(d));
+const cls = d => (d > 0 ? 'pos' : d < 0 ? 'neg' : '');
+
+const R = { range: 'month', from: '', to: '' };
+const D = { sales: [], expenses: [], adjustments: [], failed: false };
+const STK = { q: '', cat: '', st: '' };
+
+function setRange(r) {
+  R.range = r;
+  if (r === 'today') R.from = R.to = todayS();
+  else if (r === 'week') { R.from = ymdOf(new Date(Date.now() - 6 * 864e5)); R.to = todayS(); }
+  else if (r === 'month') { R.from = todayS().slice(0, 7) + '-01'; R.to = todayS(); }
+  else if (r === 'all') { R.from = ''; R.to = ''; }
+}
+setRange('month');
+const inR = d => !!d && (!R.from || d >= R.from) && (!R.to || d <= R.to);
+
+async function load() {
+  await ready;
+  if (window.POS.storeError()) return;
+  D.sales = await idb.all('sales');
+  D.expenses = await idb.all('expenses');
+  D.adjustments = await idb.all('adjustments');
+}
+const loaded = load().catch(err => { D.failed = true; console.error(err); });
+
+/* ---------- data in range ---------- */
+const salesIn = () => D.sales.filter(s => inR(ymd(s.createdAt)));
+const poIn = () => S.purchases.filter(p => inR(p.date));
+const exIn = () => D.expenses.filter(e => inR(e.date));
+const adIn = () => D.adjustments.filter(a => inR(a.date));
+const cogsOf = s => s.items.reduce((a, it) => a + Math.round(it.qty * (it.cost || 0)), 0);
+const dueOf = p => Math.max(0, p.total - p.paid);
+const costOf = id => ((S.products.find(p => p.id === id) || {}).costPrice) || 0;
+
+/* ---------- html helpers ---------- */
+const stat = (label, value, c = '') => `<div class="rp-stat"><div class="rp-sl">${label}</div><div class="rp-sv ${c}">${value}</div></div>`;
+const statGrid = arr => `<div class="rp-grid">${arr.join('')}</div>`;
+const section = (title, inner) => `<div class="sec">${title}</div>${inner}`;
+const vr = (left, sub, right, c = '', rsub = '') => `
+<div class="vrow"><div class="rp-l"><div class="pname" style="font-size:15px">${left}</div>${sub ? `<div class="psub">${sub}</div>` : ''}</div>
+  <div class="rp-r"><b class="${c}">${right}</b>${rsub ? `<div class="psub">${rsub}</div>` : ''}</div></div>`;
+const listRows = rows => rows.length ? `<div class="rp-list">${rows.join('')}</div>` : '<div class="hint">မှတ်တမ်း မရှိပါ</div>';
+const bars = (rows, total) => `<div class="rp-break">${rows.map(([n, v]) =>
+  `<div class="rp-b" style="--p:${total > 0 ? Math.round(v / total * 100) : 0}%"><span>${esc(n)}</span><b>${money(v)}</b></div>`).join('')}</div>`;
+const noData = () => `<div class="empty"><h3>မှတ်တမ်း မရှိပါ</h3><p>ရွေးထားသော ကာလအတွင်း ဒေတာ မရှိပါ။ ကာလကို ပြောင်းကြည့်ပါ။</p></div>`;
+function groupSum(arr, keyf, valf) {
+  const m = new Map();
+  arr.forEach(x => { const k = keyf(x); m.set(k, (m.get(k) || 0) + valf(x)); });
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+/* ---------- reports ---------- */
+function repSales() {
+  const L = salesIn(); if (!L.length) return noData();
+  const total = sum(L, s => s.total), disc = sum(L, s => s.discount || 0), profit = total - sum(L, cogsOf);
+  const days = new Map();
+  L.forEach(s => { const k = ymd(s.createdAt); const o = days.get(k) || { n: 0, t: 0 }; o.n++; o.t += s.total; days.set(k, o); });
+  const prods = new Map();
+  L.forEach(s => s.items.forEach(it => {
+    const k = it.productId || it.name;
+    const o = prods.get(k) || { name: it.name, unit: it.unit, q: 0, a: 0 };
+    o.q += it.qty; o.a += Math.round(it.qty * it.price); prods.set(k, o);
+  }));
+  const top = [...prods.values()].sort((a, b) => b.a - a.a).slice(0, 20);
+  return statGrid([
+    stat('ရောင်းချမှု', `${L.length} ကြိမ်`),
+    stat('စုစုပေါင်း ရောင်းရငွေ', money(total)),
+    stat('အမြတ်', signedMoney(profit), cls(profit)),
+    stat('လျှော့စျေး', money(disc)),
+  ])
+  + section('နေ့အလိုက်', listRows([...days.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([d, o]) => vr(dmy(d), `${o.n} ကြိမ်`, money(o.t)))))
+  + section('ရောင်းအားအကောင်းဆုံး ကုန်ပစ္စည်းများ', listRows(top.map(o => vr(esc(o.name), `${qty(o.q)} ${esc(o.unit || '')}`, money(o.a)))));
+}
+
+function repPurchase() {
+  const L = poIn(); if (!L.length) return noData();
+  const total = sum(L, p => p.total), paid = sum(L, p => p.paid), due = sum(L, dueOf);
+  const sup = new Map();
+  L.forEach(p => { const k = p.supplier || 'ပစ္စည်းသွင်းသူ မသတ်မှတ်'; const o = sup.get(k) || { n: 0, t: 0, d: 0 }; o.n++; o.t += p.total; o.d += dueOf(p); sup.set(k, o); });
+  const prods = new Map();
+  L.forEach(p => p.items.forEach(it => {
+    const k = it.productId || it.name;
+    const o = prods.get(k) || { name: it.name, unit: it.unit, q: 0, a: 0 };
+    o.q += it.qty; o.a += Math.round(it.qty * it.cost); prods.set(k, o);
+  }));
+  const top = [...prods.values()].sort((a, b) => b.a - a.a).slice(0, 20);
+  return statGrid([
+    stat('ဝယ်ယူမှု', `${L.length} ကြိမ်`),
+    stat('စုစုပေါင်း ဝယ်ငွေ', money(total)),
+    stat('ပေးပြီးငွေ', money(paid)),
+    stat('ပေးရန်ကျန်', money(due), due > 0 ? 'neg' : ''),
+  ])
+  + section('ပစ္စည်းသွင်းသူအလိုက်', listRows([...sup.entries()].sort((a, b) => b[1].t - a[1].t)
+      .map(([n, o]) => vr(esc(n), `${o.n} ကြိမ်`, money(o.t), '', o.d > 0 ? `<span class="due">ကျန် ${money(o.d)}</span>` : ''))))
+  + section('ကုန်ပစ္စည်းအလိုက် ဝယ်ယူမှု', listRows(top.map(o => vr(esc(o.name), `${qty(o.q)} ${esc(o.unit || '')}`, money(o.a)))));
+}
+
+function cashDays() {
+  const days = new Map();
+  const add = (d, k, v) => {
+    if (!inR(d) || !v) return;
+    const o = days.get(d) || { sale: 0, buy: 0, debt: 0, exp: 0 }; o[k] += v; days.set(d, o);
+  };
+  D.sales.forEach(s => add(ymd(s.createdAt), 'sale', s.total));
+  S.purchases.forEach(p => {
+    const pays = p.payments || [];
+    add(p.date, 'buy', Math.max(0, (p.paid || 0) - sum(pays, x => x.amount)));   // paid when buying
+    pays.forEach(x => add(x.date, 'debt', x.amount));                            // paid later (debt payment)
+  });
+  D.expenses.forEach(e => add(e.date, 'exp', e.amount));
+  return days;
+}
+function repCash() {
+  const days = cashDays(); if (!days.size) return noData();
+  const v = [...days.values()];
+  const inn = sum(v, o => o.sale), buy = sum(v, o => o.buy), debt = sum(v, o => o.debt), exp = sum(v, o => o.exp);
+  const out = buy + debt + exp, net = inn - out;
+  return `
+  <div class="tot">
+    <div><span>ငွေအဝင် (ရောင်းရငွေ)</span><span>${money(inn)}</span></div>
+    <div><span>ဝယ်ယူမှု ပေးငွေ</span><span>- ${money(buy)}</span></div>
+    <div><span>အကြွေး ပေးချေငွေ</span><span>- ${money(debt)}</span></div>
+    <div><span>အသုံးစရိတ်</span><span>- ${money(exp)}</span></div>
+    <div class="grand"><span>ကျန်ငွေ</span><span class="${cls(net)}">${signedMoney(net)}</span></div>
+  </div>`
+  + section('နေ့အလိုက်', listRows([...days.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([d, o]) => {
+      const i = o.sale, x = o.buy + o.debt + o.exp, n = i - x;
+      return vr(dmy(d), `အဝင် ${money(i)} · အထွက် ${money(x)}`, signedMoney(n), cls(n));
+    })));
+}
+
+function repProfit() {
+  const L = salesIn(), E = exIn();
+  if (!L.length && !E.length) return noData();
+  const rev = sum(L, s => s.total), cogs = sum(L, cogsOf), gross = rev - cogs;
+  const exp = sum(E, e => e.amount), net = gross - exp;
+  const margin = rev > 0 ? Math.round(gross / rev * 1000) / 10 : 0;
+  const prods = new Map();
+  L.forEach(s => s.items.forEach(it => {
+    const k = it.productId || it.name;
+    const o = prods.get(k) || { name: it.name, unit: it.unit, q: 0, p: 0 };
+    o.q += it.qty; o.p += Math.round(it.qty * it.price) - Math.round(it.qty * (it.cost || 0)); prods.set(k, o);
+  }));
+  const top = [...prods.values()].sort((a, b) => b.p - a.p).slice(0, 15);
+  return `
+  <div class="tot">
+    <div><span>ရောင်းရငွေ</span><span>${money(rev)}</span></div>
+    <div><span>ကုန်ကျစရိတ် (ရောင်းပြီးပစ္စည်းတန်ဖိုး)</span><span>- ${money(cogs)}</span></div>
+    <div class="grand"><span>စုစုပေါင်း အမြတ်</span><span class="${cls(gross)}">${signedMoney(gross)}</span></div>
+    <div><span>အသုံးစရိတ်</span><span>- ${money(exp)}</span></div>
+    <div class="grand"><span>အသားတင် အမြတ်</span><span class="${cls(net)}">${signedMoney(net)}</span></div>
+    <div><span>အမြတ်ရာခိုင်နှုန်း (စုစုပေါင်းအမြတ် ÷ ရောင်းရငွေ)</span><span>${margin}%</span></div>
+  </div>`
+  + section('အမြတ်အများဆုံး ကုန်ပစ္စည်းများ (လျှော့စျေးမခွဲမီ)', listRows(top.map(o =>
+      vr(esc(o.name), `${qty(o.q)} ${esc(o.unit || '')}`, signedMoney(o.p), cls(o.p)))));
+}
+
+function repExpense() {
+  const E = exIn(); if (!E.length) return noData();
+  const total = sum(E, e => e.amount);
+  const cats = groupSum(E, e => e.category, e => e.amount);
+  return statGrid([stat('အသုံးစရိတ် စုစုပေါင်း', money(total)), stat('မှတ်တမ်း', `${E.length} ခု`)])
+  + section('အမျိုးအစားအလိုက်', bars(cats, total))
+  + section('မှတ်တမ်းများ', listRows(E.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
+      .slice(0, 100).map(e => vr(esc(e.category), `${dmy(e.date)}${e.note ? ' · ' + esc(e.note) : ''}`, money(e.amount)))));
+}
+
+function repAdjust() {
+  const A = adIn(); if (!A.length) return noData();
+  let lossV = 0, gainV = 0;
+  const reasons = new Map();
+  const lines = [];
+  A.forEach(a => {
+    const o = reasons.get(a.reason) || { n: 0, v: 0 }; o.n++;
+    a.items.forEach(i => {
+      const v = Math.round(i.diff * costOf(i.productId));
+      if (v < 0) lossV += -v; else gainV += v;
+      o.v += v; lines.push({ a, i });
+    });
+    reasons.set(a.reason, o);
+  });
+  lines.sort((x, y) => y.a.date.localeCompare(x.a.date) || y.a.createdAt - x.a.createdAt);
+  return statGrid([
+    stat('စာရင်းညှိ', `${A.length} ကြိမ်`),
+    stat('လျှော့ထားသော တန်ဖိုး', money(lossV), lossV > 0 ? 'neg' : ''),
+    stat('တိုးထားသော တန်ဖိုး', money(gainV), gainV > 0 ? 'pos' : ''),
+  ])
+  + `<div class="hint" style="margin-top:8px">တန်ဖိုးကို ကုန်ပစ္စည်း၏ လက်ရှိ ကုန်ကျစျေးဖြင့် ခန့်မှန်းတွက်ထားသည်။</div>`
+  + section('အကြောင်းပြချက်အလိုက်', listRows([...reasons.entries()].sort((a, b) => b[1].n - a[1].n)
+      .map(([r, o]) => vr(esc(r), `${o.n} ကြိမ်`, signedMoney(o.v), cls(o.v)))))
+  + section('ညှိထားသော ကုန်ပစ္စည်းများ', listRows(lines.slice(0, 100).map(({ a, i }) =>
+      vr(esc(i.name), `${dmy(a.date)} · ${esc(a.no)} · ${esc(a.reason)}`, `${signed(i.diff)} ${esc(i.unit || '')}`, cls(i.diff),
+         `${qty(i.before)} → ${qty(i.after)}`))));
+}
+
+/* ---------- stock report (no date range) ---------- */
+const isLow = p => p.active && Number(p.minStock) > 0 && !(p.stock > Number(p.minStock));
+function stockRows() {
+  const q = norm(STK.q.trim());
+  return S.products.filter(p =>
+    (!q || [p.name, p.nameMm, p.code, p.barcode, p.brand].some(v => norm(v).includes(q))) &&
+    (!STK.cat || p.categoryId === STK.cat) &&
+    (!STK.st || (STK.st === 'low' ? isLow(p) : STK.st === 'out' ? !(p.stock > 0) : true)))
+    .sort((a, b) => titleOf(a).localeCompare(titleOf(b), 'my'));
+}
+const stChip = p => !(p.stock > 0) ? '<span class="chip debt">ကုန်နေသည်</span>' : isLow(p) ? '<span class="chip debt">လက်ကျန်နည်း</span>'
+  : !p.active ? '<span class="chip off">ရပ်ထားသည်</span>' : '';
+function drawStock() {
+  const rows = stockRows();
+  const cost = sum(rows, p => Math.round((p.stock || 0) * (p.costPrice || 0)));
+  const sell = sum(rows, p => Math.round((p.stock || 0) * (p.sellPrice || 0)));
+  $('#rpCount').textContent = `ကုန်ပစ္စည်း ${rows.length} မျိုး`;
+  if (!rows.length) { $('#rpBody').innerHTML = `<div class="empty"><h3>မတွေ့ပါ</h3><p>ရှာဖွေမှုနှင့် ကိုက်ညီသော ကုန်ပစ္စည်း မရှိပါ။</p></div>`; return; }
+  const card = p => `
+<article class="pcard">
+  <div class="phead">${thumb(p, 'sm')}<div><h3 class="pname" style="font-size:16px">${esc(titleOf(p))}</h3>
+    <div class="psub">${esc(p.code || '')} · ${esc(catName(p.categoryId))}</div></div></div>
+  <dl class="kv">
+    <div><dt>လက်ကျန်</dt><dd>${qty(p.stock)} ${esc(unitName(p.unitId))}</dd></div>
+    <div><dt>ကုန်ကျတန်ဖိုး</dt><dd>${money(Math.round((p.stock || 0) * (p.costPrice || 0)))}</dd></div>
+  </dl>${stChip(p) ? `<div>${stChip(p)}</div>` : ''}
+</article>`;
+  const row = p => `
+<tr>
+  <td><div class="tcell">${thumb(p, 'sm')}<div><div class="pname">${esc(titleOf(p))}</div><div class="psub">${esc(p.code || '')}</div></div></div></td>
+  <td>${esc(catName(p.categoryId))}</td>
+  <td class="num">${qty(p.stock)} ${esc(unitName(p.unitId))}</td>
+  <td class="num">${money(p.costPrice || 0)}</td>
+  <td class="num">${money(p.sellPrice || 0)}</td>
+  <td class="num"><b>${money(Math.round((p.stock || 0) * (p.costPrice || 0)))}</b></td>
+  <td>${stChip(p)}</td>
+</tr>`;
+  $('#rpBody').innerHTML = statGrid([
+    stat('ကုန်ပစ္စည်း', `${rows.length} မျိုး`),
+    stat('လက်ကျန်တန်ဖိုး (ကုန်ကျစျေး)', money(cost)),
+    stat('လက်ကျန်တန်ဖိုး (ရောင်းစျေး)', money(sell)),
+    stat('လက်ကျန်နည်း / ကုန်', `${rows.filter(p => isLow(p) || !(p.stock > 0)).length} မျိုး`),
+  ]) + `<div style="height:14px"></div>
+  <div class="cards">${rows.map(card).join('')}</div>
+  <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>ကုန်ပစ္စည်း</th><th>အမျိုးအစား</th><th class="num">လက်ကျန်</th><th class="num">ကုန်ကျစျေး</th><th class="num">ရောင်းစျေး</th><th class="num">တန်ဖိုး</th><th></th></tr></thead>
+    <tbody>${rows.map(row).join('')}</tbody></table></div>`;
+}
+function mountStock() {
+  $('#content').innerHTML = `
+<div class="pg">
+  <div class="toolbar">
+    <label class="search">${svg('search', 20)}<input id="q" type="search" placeholder="အမည်၊ ကုဒ်၊ ဘားကုဒ်ဖြင့် ရှာရန်" autocomplete="off"></label>
+    <select class="rp-select" id="rpCat" aria-label="အမျိုးအစား"><option value="">အမျိုးအစားအားလုံး</option>${S.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+    <select class="rp-select" id="rpSt" aria-label="အခြေအနေ"><option value="">အားလုံး</option><option value="low">လက်ကျန်နည်း</option><option value="out">ကုန်နေသည်</option></select>
+    <button class="btn" id="rpPrint">ပရင့်</button>
+  </div>
+  <div class="count" id="rpCount"></div>
+  <div id="rpBody"></div>
+</div>`;
+  $('#q').value = STK.q; $('#rpCat').value = STK.cat; $('#rpSt').value = STK.st;
+  $('#q').addEventListener('input', e => { STK.q = e.target.value; drawStock(); });
+  $('#rpCat').addEventListener('change', e => { STK.cat = e.target.value; drawStock(); });
+  $('#rpSt').addEventListener('change', e => { STK.st = e.target.value; drawStock(); });
+  $('#rpPrint').addEventListener('click', () => window.print());
+  drawStock();
+}
+
+/* ---------- range-based report shell ---------- */
+const REPS = {
+  'r-sales/view':    { title: 'ရောင်းချမှု အစီရင်ခံစာ',  fn: repSales },
+  'r-purchase/view': { title: 'ဝယ်ယူမှု အစီရင်ခံစာ',    fn: repPurchase },
+  'r-cash/view':     { title: 'အဝင်အထွက် အစီရင်ခံစာ',   fn: repCash },
+  'r-adjust/view':   { title: 'စာရင်းညှိ အစီရင်ခံစာ',    fn: repAdjust },
+  'r-profit':        { title: 'ရောင်းချမှု အမြတ်',       fn: repProfit },
+  'r-expense':       { title: 'အသုံးစရိတ် အစီရင်ခံစာ',   fn: repExpense },
+  'r-stock':         { title: 'ပစ္စည်းစာရင်း အစီရင်ခံစာ', stock: true },
+};
+const CHIPS = [['today', 'ယနေ့'], ['week', 'ရက် ၇ ရက်'], ['month', 'ယခုလ'], ['all', 'အားလုံး'], ['custom', 'ရက်ရွေးမည်']];
+
+function periodText() {
+  if (!R.from && !R.to) return 'ကာလအားလုံး';
+  return `${R.from ? dmy(R.from) : '…'} မှ ${R.to ? dmy(R.to) : '…'} အထိ`;
+}
+function mountRange(rep) {
+  $('#content').innerHTML = `
+<div class="pg">
+  <div class="rp-bar"><div class="rp-chips" id="rpChips"></div><button class="btn small" id="rpPrint">ပရင့်</button></div>
+  <div class="rp-dates" id="rpDates" hidden>
+    <input type="date" id="rpFrom" aria-label="စတင်ရက်"><span>မှ</span><input type="date" id="rpTo" aria-label="ပြီးဆုံးရက်"><span>အထိ</span>
+  </div>
+  <div class="count" id="rpCount"></div>
+  <div id="rpBody"></div>
+</div>`;
+  const draw = () => {
+    $('#rpChips').innerHTML = CHIPS.map(([k, l]) => `<button type="button" data-r="${k}" class="${k === R.range ? 'on' : ''}">${l}</button>`).join('');
+    $('#rpDates').hidden = R.range !== 'custom';
+    $('#rpFrom').value = R.from; $('#rpTo').value = R.to;
+    $('#rpCount').textContent = periodText();
+    $('#rpBody').innerHTML = rep.fn();
+  };
+  $('#rpChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-r]'); if (!b) return;
+    if (b.dataset.r === 'custom') R.range = 'custom'; else setRange(b.dataset.r);
+    draw();
+  });
+  $('#rpFrom').addEventListener('change', e => { R.from = e.target.value; $('#rpCount').textContent = periodText(); $('#rpBody').innerHTML = rep.fn(); });
+  $('#rpTo').addEventListener('change', e => { R.to = e.target.value; $('#rpCount').textContent = periodText(); $('#rpBody').innerHTML = rep.fn(); });
+  $('#rpPrint').addEventListener('click', () => window.print());
+  draw();
+}
+
+/* ---------- Routing hook ---------- */
+window.showPage = async function (id) {
+  const rep = REPS[id] || REPS['r-sales/view'];
+  titleEl.textContent = rep.title;
+  await ready; await loaded;
+  const content = $('#content');
+  if (window.POS.storeError() || D.failed) {
+    content.innerHTML = `<div class="empty"><h3>ဒေတာသိမ်းစနစ် မဖွင့်နိုင်ပါ</h3>
+      <p>တခြား tab တွေကို ပိတ်ပြီး စာမျက်နှာကို ပြန် refresh လုပ်ပါ။ Chrome သို့မဟုတ် Edge ဖြင့် ဖွင့်ပါ (Private/Incognito mode တွင် အလုပ်မလုပ်နိုင်ပါ)</p></div>`;
+    return;
+  }
+  window.POS.ensureShared();
+  if (rep.stock) mountStock(); else mountRange(rep);
+};
+})();
+</script>
+<script>
+/* Runs last on every page: opens the right page + highlights the menu */
+(() => {
+  const q = new URLSearchParams(location.search);
+  let id = document.body.dataset.page || 'summary';
+  let label = document.body.dataset.title || 'အနှစ်ချုပ်';
+  if (q.get('p')) { id = q.get('p'); label = q.get('t') || label; }
+  if (q.get('new')) id = id.split('/')[0] + '/new';
+  const parent = id.split('/')[0];                       // open the submenu that holds the active item
+  const sub = drawer.querySelector(`.sub[data-parent="${CSS.escape(parent)}"]`);
+  if (sub) {
+    sub.classList.add('open');
+    const head = sub.previousElementSibling;
+    if (head) { head.classList.add('open'); head.setAttribute('aria-expanded', 'true'); }
+  }
+  setActive(id, label);
+})();
+</script>
+</body>
+</html>
