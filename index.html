@@ -901,10 +901,19 @@ render();
           <div class="field"><label for="st-foot">အောက်ခြေစာ</label><input type="text" id="st-foot" value="${esc(v.footer)}" autocomplete="off"></div>
           <label class="check full"><input type="checkbox" id="st-auto" ${v.autoPrint ? 'checked' : ''}><span>ရောင်းပြီးတိုင်း ဘောက်ချာ အလိုအလျောက် ပရင့်ထုတ်မည်</span></label>
         </div>
-        <p style="margin:14px 0 0; font-size:14px">ပရင့်စက် ချိတ်ဆက်ခြင်းကို နောက်အဆင့်တွင် ထည့်သွင်းမည်။ ဒီတန်ဖိုးများကို အဲဒီအခါ ဘောက်ချာတွင် သုံးမည်။</p>
         <div style="display:flex; justify-content:flex-end; margin-top:16px">
           <button type="button" class="btn primary" id="st-save" style="min-width:140px">သိမ်းမည်</button>
         </div>
+      </div>
+
+      <h2 class="sm-h">ပရင့်ထုတ်ခြင်း</h2>
+      <div class="sm-list" style="padding:16px; display:grid; gap:12px">
+        <p style="margin:0; font-size:14px">Android တွင် RawBT app ထဲ၌ ပရင့်စက်ကို ချိတ်ထားရမည်။ ဘောက်ချာကို RawBT သို့ ပို့ပြီး ပရင့်ထုတ်မည်။ iPhone / ကွန်ပျူတာတွင် ဘောက်ချာကို ပုံအဖြစ် သိမ်း/မျှဝေပေးမည်။ အပေါ်က တန်ဖိုးများ မသိမ်းရသေးလည်း စမ်းလို့ရသည်။</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+          <button type="button" class="btn" id="st-prev-btn">ဘောက်ချာ ပုံကြည့်ရန်</button>
+          <button type="button" class="btn primary" id="st-test-btn">စမ်းပရင့်ထုတ်ရန်</button>
+        </div>
+        <div id="st-prev"></div>
       </div>
     </div>`;
 
@@ -927,6 +936,24 @@ render();
       catch (e) { console.error(e); toast('သိမ်း၍ မရပါ'); }
     });
 
+    const formCfg = () => ({
+      ...v, paper: Number($('st-paper').value), shopName: $('st-name').value.trim(), shopAddr: $('st-addr').value.trim(),
+      shopPhone: $('st-phone').value.trim(), footer: $('st-foot').value.trim(), autoPrint: $('st-auto').checked,
+      copies: Math.min(5, Math.max(1, parseInt($('st-copies').value, 10) || 1)),
+    });
+    $('st-prev-btn').addEventListener('click', async () => {
+      try {
+        const c = await window.POSPrint.renderReceipt(window.POSPrint.sample(), formCfg());
+        $('st-prev').innerHTML = `<img alt="ဘောက်ချာ နမူနာ" src="${c.toDataURL()}" style="max-width:100%; background:#fff; border:1px solid var(--line); border-radius:8px">`;
+      } catch (e) { console.error(e); toast('ပုံဆွဲ၍ မရပါ'); }
+    });
+    $('st-test-btn').addEventListener('click', async () => {
+      try {
+        const r = await window.POSPrint.printSale(window.POSPrint.sample(), { cfg: formCfg() });
+        toast(r === 'rawbt' ? 'RawBT သို့ ပို့ပြီးပါပြီ' : 'ပုံ ပြင်ဆင်ပြီးပါပြီ');
+      } catch (e) { console.error(e); toast('ပရင့်ထုတ်၍ မရပါ'); }
+    });
+
     window.POSScan.start((code, m) => {
       $('st-res').textContent = code;
       $('st-info').textContent = `${m.len} လုံး · ${m.ms} ms ဖြင့် ဖတ်ပြီး`;
@@ -938,6 +965,189 @@ render();
   window.showPage = function (id, label) {
     if (id.split('/')[0] === 's-print') renderSettings();
     else { if (window.POSScan) window.POSScan.stop(); prev(id, label); }
+  };
+})();
+</script>
+<script>
+/* ---------- Receipt printing ----------
+   The receipt is drawn on a canvas (so Burmese text renders correctly), converted to ESC/POS
+   raster data and handed to RawBT on Android via its intent link. Other devices get a PNG to save/share. */
+(() => {
+  const DEF = { paper: 58, shopName: '', shopAddr: '', shopPhone: '', footer: '', copies: 1, autoPrint: false };
+  const FONT = '"Noto Sans Myanmar","Myanmar Text","Padauk","Pyidaungsu",sans-serif';
+  const num = n => Math.round(Number(n) || 0).toLocaleString('en-US');
+  const qty = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
+  const p2 = n => String(n).padStart(2, '0');
+  const stamp = t => { const d = new Date(t); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+
+  function loadCfg() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('pos-db', 3);
+        r.onupgradeneeded = () => {
+          ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+            if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
+          });
+        };
+        r.onsuccess = () => {
+          const db = r.result;
+          try {
+            const q = db.transaction('meta').objectStore('meta').get('settings');
+            q.onsuccess = () => { db.close(); res({ ...DEF, ...((q.result && q.result.value) || {}) }); };
+            q.onerror = () => { db.close(); res({ ...DEF }); };
+          } catch (e) { db.close(); res({ ...DEF }); }
+        };
+        r.onerror = () => res({ ...DEF });
+      } catch (e) { res({ ...DEF }); }
+    });
+  }
+
+  /* ---- text wrapping (Burmese has no spaces: use word segmentation, then graphemes) ---- */
+  const wordSeg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('my', { granularity: 'word' }) : null;
+  const graphSeg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('my', { granularity: 'grapheme' }) : null;
+  const pieces = t => wordSeg ? Array.from(wordSeg.segment(t), s => s.segment) : t.split(/(?<=\s)/);
+  const graphemes = t => graphSeg ? Array.from(graphSeg.segment(t), s => s.segment) : Array.from(t);
+  function wrap(ctx, text, maxW) {
+    const lines = []; let cur = '';
+    for (const p of pieces(String(text))) {
+      if (ctx.measureText(cur + p).width <= maxW) { cur += p; continue; }
+      if (cur.trim()) { lines.push(cur.trimEnd()); }
+      cur = '';
+      if (ctx.measureText(p).width <= maxW) { cur = p.replace(/^\s+/, ''); continue; }
+      for (const g of graphemes(p)) {
+        if (ctx.measureText(cur + g).width <= maxW) cur += g; else { lines.push(cur); cur = g; }
+      }
+    }
+    if (cur.trim()) lines.push(cur.trimEnd());
+    return lines.length ? lines : [''];
+  }
+
+  /* ---- receipt layout; draw=false only measures the height ---- */
+  function paint(ctx, W, sale, cfg, draw) {
+    const M = 6, inner = W - M * 2;
+    let y = 6;
+    const font = (size, bold) => { ctx.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`; };
+    const lineH = size => Math.round(size * 1.55);
+    const put = (t, x, base, align) => { ctx.textAlign = align; ctx.fillText(t, x, base); };
+    const block = (t, size = 22, bold = false, align = 'left') => {
+      if (!String(t || '').trim()) return;
+      font(size, bold); const lh = lineH(size);
+      for (const l of wrap(ctx, t, inner)) {
+        if (draw) put(l, align === 'center' ? W / 2 : align === 'right' ? W - M : M, y + Math.round(lh * 0.74), align);
+        y += lh;
+      }
+    };
+    const row = (left, right, size = 22, bold = false) => {
+      font(size, bold); const lh = lineH(size);
+      const rw = Math.ceil(ctx.measureText(right).width);
+      wrap(ctx, left, Math.max(60, inner - rw - 10)).forEach((l, i) => {
+        if (draw) { const b = y + Math.round(lh * 0.74); put(l, M, b, 'left'); if (i === 0) put(right, W - M, b, 'right'); }
+        y += lh;
+      });
+    };
+    const sep = () => { y += 4; if (draw) for (let x = M; x < W - M; x += 10) ctx.fillRect(x, y, 6, 2); y += 10; };
+
+    if (cfg.shopName) block(cfg.shopName, 30, true, 'center');
+    block(cfg.shopAddr, 20, false, 'center');
+    if (cfg.shopPhone) block('ဖုန်း: ' + cfg.shopPhone, 20, false, 'center');
+    if (cfg.shopName || cfg.shopAddr || cfg.shopPhone) sep();
+    row('ပြေစာအမှတ်', String(sale.no), 22);
+    block(stamp(sale.createdAt), 22);
+    sep();
+    for (const it of sale.items) {
+      block(it.name, 24, true);
+      row(`${qty(it.qty)} ${it.unit || ''} × ${num(it.price)}`, num(Math.round(it.qty * it.price)), 22);
+    }
+    sep();
+    if (sale.discount > 0) { row('ကုန်ပစ္စည်းတန်ဖိုး', num(sale.subtotal)); row('လျှော့စျေး', '- ' + num(sale.discount)); }
+    row('စုစုပေါင်း', num(sale.total) + ' ကျပ်', 28, true);
+    row('ရရှိငွေ', num(sale.paid));
+    row('ပြန်အမ်းငွေ', num(sale.change));
+    if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }
+    return y + 28;
+  }
+
+  async function renderReceipt(sale, cfg) {
+    try { await document.fonts.ready; } catch (e) { /* ignore */ }
+    const W = Number(cfg.paper) === 80 ? 576 : 384;      // printable dots at 203 dpi
+    const H = paint(document.createElement('canvas').getContext('2d'), W, sale, cfg, false);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#000'; ctx.textBaseline = 'alphabetic';
+    paint(ctx, W, sale, cfg, true);
+    return c;
+  }
+
+  /* ---- canvas -> ESC/POS raster (GS v 0), in bands of 240 rows ---- */
+  function toEscpos(canvas, copies) {
+    const w = canvas.width, h = canvas.height, wb = w >> 3;
+    const px = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const BAND = 240, bands = Math.ceil(h / BAND);
+    const one = 2 + bands * 8 + wb * h + 3;
+    const out = new Uint8Array(one * copies);
+    let o = 0;
+    for (let c = 0; c < copies; c++) {
+      out[o++] = 0x1b; out[o++] = 0x40;                    // ESC @  (initialise)
+      for (let y0 = 0; y0 < h; y0 += BAND) {
+        const bh = Math.min(BAND, h - y0);
+        out.set([0x1d, 0x76, 0x30, 0x00, wb & 255, wb >> 8, bh & 255, bh >> 8], o); o += 8;
+        for (let y = y0; y < y0 + bh; y++) for (let xb = 0; xb < wb; xb++) {
+          let b = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const i = (y * w + xb * 8 + bit) * 4;
+            if (px[i + 3] > 0 && (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) < 150) b |= 0x80 >> bit;
+          }
+          out[o++] = b;
+        }
+      }
+      out[o++] = 0x1b; out[o++] = 0x64; out[o++] = 0x04;   // ESC d 4 (feed 4 lines)
+    }
+    return out;
+  }
+
+  function b64(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  const rawbtUrl = bytes => 'intent:base64,' + b64(bytes) + '#Intent;scheme=RawBT;package=ru.a402d.RawBTprinter;end;';
+
+  async function saveImage(canvas, name) {
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], name + '.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name + '.png';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
+  function sample() {
+    const items = [
+      { name: 'နမူနာ ကုန်ပစ္စည်း', unit: 'ခု', qty: 2, price: 1500 },
+      { name: 'ကော်ဖီမစ် ၃ ခုတွဲ အထုပ်ကြီး', unit: 'ထုပ်', qty: 1, price: 4800 },
+    ];
+    const subtotal = items.reduce((a, it) => a + Math.round(it.qty * it.price), 0);
+    return { no: 'TEST-0001', createdAt: Date.now(), items, subtotal, discount: 300, total: subtotal - 300, paid: 10000, change: 10000 - (subtotal - 300) };
+  }
+
+  window.POSPrint = {
+    loadCfg, renderReceipt, sample,
+    // -> 'rawbt' (sent to RawBT) | 'image' (PNG saved/shared) | 'skip' (auto-print is off)
+    async printSale(sale, opt = {}) {
+      const cfg = opt.cfg || await loadCfg();
+      if (opt.auto && !cfg.autoPrint) return 'skip';
+      const canvas = await renderReceipt(sale, cfg);
+      if (/Android/i.test(navigator.userAgent)) {
+        const copies = Math.min(5, Math.max(1, parseInt(cfg.copies, 10) || 1));
+        window.location.href = rawbtUrl(toEscpos(canvas, copies));
+        return 'rawbt';
+      }
+      await saveImage(canvas, 'receipt-' + sale.no);
+      return 'image';
+    },
+    _toEscpos: toEscpos, _wrap: wrap,
   };
 })();
 </script>

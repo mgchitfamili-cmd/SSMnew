@@ -884,6 +884,7 @@ function mount() {
   <div class="toolbar">
     <label class="search">${svg('search', 20)}<input id="q" type="search" placeholder="အမည်၊ ဘားကုဒ်၊ ကုဒ်ဖြင့် ရှာရန်" autocomplete="off"></label>
     <button class="btn" id="fbtn" aria-expanded="false">${svg('filter', 20)} စစ်ထုတ်ရန် <span class="badge" id="fbadge" hidden></span></button>
+    <button class="btn" id="csvBtn">CSV ထုတ်ရန်</button>
     <button class="btn primary" id="addBtn">+ ကုန်ပစ္စည်းထည့်ရန်</button>
   </div>
   <div class="filters" id="filters" hidden>
@@ -913,6 +914,7 @@ function mount() {
   $('#fbtn').addEventListener('click', () => {
     const f = $('#filters'); f.hidden = !f.hidden; $('#fbtn').setAttribute('aria-expanded', String(!f.hidden));
   });
+  $('#csvBtn').addEventListener('click', exportCsv);
   $('#addBtn').addEventListener('click', () => openForm());
   $('#plist').addEventListener('click', e => {
     const b = e.target.closest('[data-act]'); if (b) act(b.dataset.act, b.dataset.id);
@@ -924,6 +926,31 @@ function fillFilterCats() {
   $('#fl-cat').innerHTML = `<option value="">အားလုံး</option>` +
     S.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   $('#fl-cat').value = ui.cat;
+}
+
+/* ---------- CSV export (e.g. for label printing apps): exports the list as currently filtered ---------- */
+function exportCsv() {
+  const rows = filtered();
+  if (!rows.length) return toast('ထုတ်ရန် ကုန်ပစ္စည်း မရှိပါ');
+  const txt = v => {                                   // quote every cell; neutralise spreadsheet formulas
+    let t = String(v ?? '');
+    if (/^[=+@]/.test(t)) t = "'" + t;
+    return '"' + t.replace(/"/g, '""') + '"';
+  };
+  const head = ['code', 'barcode', 'name', 'name_mm', 'brand', 'category', 'unit', 'price'];
+  const lines = [head.map(txt).join(',')];
+  rows.forEach(p => lines.push([
+    txt(p.code), txt(p.barcode), txt(p.name), txt(p.nameMm), txt(p.brand),
+    txt(catName(p.categoryId)), txt(unitName(p.unitId)), Math.round(Number(p.sellPrice) || 0),
+  ].join(',')));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `products-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast(`ကုန်ပစ္စည်း ${rows.length} မျိုး ထုတ်ပြီးပါပြီ`);
 }
 
 function filtered() {
