@@ -561,6 +561,7 @@ const ROUTES = {
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
   'summary': 'index.html', 'retail': 'retail.html',
   'sales/list': 'sales.html', 'sales/new': 'retail.html',
+  'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -630,9 +631,9 @@ render();
 
   function openDB() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('pos-db', 3);
+      const r = indexedDB.open('pos-db', 4);
       r.onupgradeneeded = () => {            // same stores as the other pages, in case this page opens first
-        ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales', 'expenses'].forEach(n => {
           if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
         });
       };
@@ -655,10 +656,10 @@ render();
   async function renderSummary() {
     const box = document.getElementById('content');
     box.innerHTML = '<div class="pg"><p>ဖတ်နေသည်…</p></div>';
-    let products, sales, purchases;
+    let products, sales, purchases, expenses;
     try {
       const db = await openDB();
-      [products, sales, purchases] = await Promise.all([all(db, 'products'), all(db, 'sales'), all(db, 'purchases')]);
+      [products, sales, purchases, expenses] = await Promise.all([all(db, 'products'), all(db, 'sales'), all(db, 'purchases'), all(db, 'expenses')]);
     } catch (e) {
       console.error(e);
       box.innerHTML = '<div class="pg"><div class="sm-list"><div class="sm-empty">ဒေတာ ဖတ်၍ မရပါ</div></div></div>';
@@ -673,6 +674,10 @@ render();
     const sToday = sales.filter(s => s.createdAt >= t0 && s.createdAt < t0 + DAY);
     const sMonth = sales.filter(s => s.createdAt >= m0);
     const pMonth = purchases.filter(p => (p.date || '').startsWith(monthStr));
+    const eMonth = expenses.filter(e => (e.date || '').startsWith(monthStr));
+    const expMonth = eMonth.reduce((a, e) => a + (e.amount || 0), 0);
+    const profitMonth = sMonth.reduce((a, s) => a + profitOf(s), 0);
+    const netMonth = profitMonth - expMonth;
     const sum = (a, f) => a.reduce((x, o) => x + f(o), 0);
 
     const active = products.filter(p => p.active !== false);
@@ -713,7 +718,9 @@ render();
       <h2 class="sm-h">ယခုလ</h2>
       <div class="sm-grid">
         ${card('ရောင်းရငွေ', money(sum(sMonth, s => s.total)), `${sMonth.length} ကြိမ်`)}
-        ${card('အမြတ်', money(sum(sMonth, profitOf)))}
+        ${card('အမြတ်', money(profitMonth), 'ကုန်ကျစျေးနုတ်ပြီး')}
+        ${card('အသုံးစရိတ်', money(expMonth), eMonth.length ? `${eMonth.length} စာရင်း` : 'မရှိသေးပါ')}
+        ${card('အသားတင်အမြတ်', money(netMonth), 'အမြတ် − အသုံးစရိတ်', netMonth < 0 ? 'warn' : 'hl')}
         ${card('ဝယ်ယူမှု', money(sum(pMonth, p => p.total)), `${pMonth.length} စာရင်း`)}
         ${card('ပေးရန်ကျန် အကြွေး', money(debt), debtN ? `${debtN} စာရင်း` : 'မရှိပါ', debt > 0 ? 'warn' : '')}
       </div>
@@ -763,9 +770,9 @@ render();
   function loadCfg() {
     return new Promise(res => {
       try {
-        const r = indexedDB.open('pos-db', 3);
+        const r = indexedDB.open('pos-db', 4);
         r.onupgradeneeded = () => {
-          ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+          ['products', 'categories', 'units', 'meta', 'purchases', 'sales', 'expenses'].forEach(n => {
             if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
           });
         };
@@ -836,9 +843,9 @@ render();
 
   function openDB() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('pos-db', 3);
+      const r = indexedDB.open('pos-db', 4);
       r.onupgradeneeded = () => {
-        ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales', 'expenses'].forEach(n => {
           if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
         });
       };
@@ -986,9 +993,9 @@ render();
   function loadCfg() {
     return new Promise(res => {
       try {
-        const r = indexedDB.open('pos-db', 3);
+        const r = indexedDB.open('pos-db', 4);
         r.onupgradeneeded = () => {
-          ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+          ['products', 'categories', 'units', 'meta', 'purchases', 'sales', 'expenses'].forEach(n => {
             if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
           });
         };

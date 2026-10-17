@@ -528,6 +528,7 @@ const ROUTES = {
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
   'summary': 'index.html', 'retail': 'retail.html',
   'sales/list': 'sales.html', 'sales/new': 'retail.html',
+  'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -607,10 +608,10 @@ const idb = {
   db: null,
   open() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('pos-db', 3);
+      const r = indexedDB.open('pos-db', 4);
       r.onupgradeneeded = () => {
         const db = r.result;
-        ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales', 'expenses'].forEach(n => {
           if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, { keyPath: 'id' });
         });
       };
