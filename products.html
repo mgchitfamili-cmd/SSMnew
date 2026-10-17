@@ -752,6 +752,7 @@ const { idb, S, ready, $, F, esc, money, qty, uid, norm, toast, ask, thumb, titl
 const storeError = () => window.POS.storeError();
 
 const ui = { q: '', cat: '', status: '', sort: 'code' };
+if (new URLSearchParams(location.search).get('status') === 'low') ui.status = 'low';   // from the low-stock alert
 let editing = null, pendingImage = null, viewId = null;
 
 /* ---------- Static dialogs (created once) ---------- */
@@ -1350,5 +1351,6 @@ document.addEventListener('keydown', e => {
   setActive(id, label);
 })();
 </script>
+<script src="lowstock.js"></script>
 </body>
 </html>

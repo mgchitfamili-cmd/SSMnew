@@ -1196,6 +1196,7 @@ async function checkout() {
     changed.forEach(np => { const i = S.products.findIndex(p => p.id === np.id); if (i >= 0) S.products[i] = np; });
     S.sales.push(sale);
     resetCart(); renderProducts();
+    if (window.POSLowStock) window.POSLowStock.afterSale(changed);
     openView(sale, true);
     doPrint(sale, true);
   } catch (err) {
@@ -1590,5 +1591,6 @@ window.showPage = async function () {
   setActive(id, label);
 })();
 </script>
+<script src="lowstock.js"></script>
 </body>
 </html>
