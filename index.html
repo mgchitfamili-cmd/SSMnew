@@ -689,7 +689,9 @@ render();
     }));
     const top = [...byP.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
     const recent = [...sales].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
-    const outList = outOf.slice(0, 6);
+    const isLow = p => Number(p.minStock) > 0 && !(p.stock > Number(p.minStock));
+    const lowN = active.filter(isLow).length;
+    const outList = active.filter(p => !(p.stock > 0) || isLow(p)).sort((a, b) => (a.stock || 0) - (b.stock || 0)).slice(0, 10);
 
     const hm = t => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
     const rows = (arr, f, empty) => arr.length ? arr.map(f).join('') : `<div class="sm-empty">${empty}</div>`;
@@ -720,6 +722,7 @@ render();
       <div class="sm-grid">
         ${card('စုစုပေါင်း', qty(active.length), 'အသုံးပြုနေသော')}
         ${card('ကုန်နေသော', qty(outOf.length), '', outOf.length ? 'warn' : '')}
+        ${card('လက်ကျန်နည်း', qty(lowN), 'သတ်မှတ်အနည်းဆုံးအောက်', lowN ? 'warn' : '')}
         ${card('လက်ကျန် တန်ဖိုး', money(stockValue), 'ကုန်ကျစျေးအရ')}
       </div>
 
@@ -734,8 +737,8 @@ render();
         </div>
       </div>
 
-      ${outList.length ? `<h2 class="sm-h">ကုန်နေသော ပစ္စည်းများ</h2>
-      <div class="sm-list">${outList.map(p => `<div class="sm-row"><div class="n"><b>${esc(p.nameMm || p.name)}</b><span>${esc(p.code || '')}</span></div><div class="a">${qty(p.stock || 0)}</div></div>`).join('')}</div>` : ''}
+      ${outList.length ? `<h2 class="sm-h">ဖြည့်ရန် လိုသော ပစ္စည်းများ</h2>
+      <div class="sm-list">${outList.map(p => `<div class="sm-row"><div class="n"><b>${esc(p.nameMm || p.name)}</b><span>${esc(p.code || '')}${p.minStock > 0 ? ' · အနည်းဆုံး ' + qty(p.minStock) : ''}</span></div><div class="a">${qty(p.stock || 0)}</div></div>`).join('')}</div>` : ''}
     </div>`;
   }
 

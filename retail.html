@@ -977,7 +977,7 @@ function renderProducts() {
           ${thumb(p, 'sm')}
           <span class="tname">${esc(titleOf(p))}</span>
           <span class="tprice">${money(p.sellPrice)}</span>
-          <span class="psub">${out ? 'ကုန်နေသည်' : `လက်ကျန် ${qty(p.stock)} ${esc(unitName(p.unitId))}`}</span></button>`;
+          <span class="psub">${out ? 'ကုန်နေသည်' : (n(p.minStock) > 0 && p.stock <= p.minStock ? 'လက်ကျန်နည်း ' : 'လက်ကျန် ') + qty(p.stock) + ' ' + esc(unitName(p.unitId))}</span></button>`;
       }).join('')}</div>`
     : `<div class="empty"><h3>မတွေ့ပါ</h3><p>ရှာဖွေမှုနှင့် ကိုက်ညီသော ကုန်ပစ္စည်း မရှိပါ။</p></div>`;
 }

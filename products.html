@@ -810,6 +810,13 @@ function ensureDialogs() {
           <input type="number" id="f-sell" min="0" step="1" inputmode="numeric"><div class="msg"></div></div>
         <div class="hint full" id="mHint" aria-live="polite"></div>
       </div>
+
+      <h3 class="sec">လက်ကျန် သတိပေးချက်</h3>
+      <div class="fg">
+        <div class="field full" id="w-min"><label for="f-min">အနည်းဆုံးလက်ကျန်</label>
+          <input type="number" id="f-min" min="0" step="any" inputmode="decimal" placeholder="0 = သတိမပေးပါ"><div class="msg"></div>
+          <div class="hint">လက်ကျန်က ဤအရေအတွက် သို့မဟုတ် ထက်နည်းလျှင် သတိပေးမည်</div></div>
+      </div>
     </div>
     <div class="df">
       <button type="button" class="btn" data-close>မလုပ်တော့ပါ</button>
@@ -890,7 +897,7 @@ function mount() {
   <div class="filters" id="filters" hidden>
     <div class="field"><label for="fl-cat">အမျိုးအစား</label><select id="fl-cat"></select></div>
     <div class="field"><label for="fl-status">အခြေအနေ</label>
-      <select id="fl-status"><option value="">အားလုံး</option><option value="on">အသုံးပြုနေသည်</option><option value="off">ရပ်ဆိုင်းထားသည်</option></select></div>
+      <select id="fl-status"><option value="">အားလုံး</option><option value="on">အသုံးပြုနေသည်</option><option value="off">ရပ်ဆိုင်းထားသည်</option><option value="low">လက်ကျန်နည်း</option></select></div>
     <div class="field"><label for="fl-sort">စီစဉ်ပုံ</label>
       <select id="fl-sort">${SORTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
     <button class="btn reset" id="flReset">ရှင်းလင်းရန်</button>
@@ -957,7 +964,7 @@ function filtered() {
   const q = norm(ui.q.trim());
   const a = S.products.filter(p =>
     (!ui.cat || p.categoryId === ui.cat) &&
-    (!ui.status || (ui.status === 'on') === p.active) &&
+    (!ui.status || (ui.status === 'low' ? isLow(p) : (ui.status === 'on') === p.active)) &&
     (!q || [p.name, p.nameMm, p.code, p.barcode, p.brand].some(v => norm(v).includes(q))));
   const by = {
     code: (x, y) => x.code.localeCompare(y.code, undefined, { numeric: true }),
@@ -979,7 +986,9 @@ const rowBtns = p => [
   ['toggle', 'power', p.active ? 'ရပ်ရန်' : 'ဖွင့်ရန်', ''], ['del', 'trash', 'ဖျက်ရန်', 'del'],
 ].map(([a, i, l, c]) => `<button class="ibtn ${c}" data-act="${a}" data-id="${p.id}" title="${l}" aria-label="${l}">${svg(i, 20)}</button>`).join('');
 
-const chip = p => `<span class="chip ${p.active ? '' : 'off'}">${p.active ? 'အသုံးပြုနေသည်' : 'ရပ်ဆိုင်းထားသည်'}</span>`;
+const isLow = p => p.active && Number(p.minStock) > 0 && !(p.stock > Number(p.minStock));
+const chip = p => `<span class="chip ${p.active ? '' : 'off'}">${p.active ? 'အသုံးပြုနေသည်' : 'ရပ်ဆိုင်းထားသည်'}</span>` +
+  (isLow(p) ? ` <span class="chip debt">${p.stock > 0 ? 'လက်ကျန်နည်း' : 'ကုန်နေသည်'}</span>` : '');
 
 const cardHtml = p => `
 <article class="pcard ${p.active ? '' : 'off'}">
@@ -992,6 +1001,7 @@ const cardHtml = p => `
     <div><dt>ကုန်ကျစျေး</dt><dd>${money(p.costPrice)}</dd></div>
     <div><dt>ရောင်းစျေး</dt><dd>${money(p.sellPrice)}</dd></div>
     <div><dt>လက်ကျန်စတော့</dt><dd>${qty(p.stock)} ${esc(unitName(p.unitId))}</dd></div>
+    ${p.minStock > 0 ? `<div><dt>အနည်းဆုံးလက်ကျန်</dt><dd>${qty(p.minStock)} ${esc(unitName(p.unitId))}</dd></div>` : ''}
   </dl>
   <div>${chip(p)}</div>
   <div class="acts">${cardBtns(p)}</div>
@@ -1119,12 +1129,13 @@ function openForm(id) {
   editing = id ? find(id) : null;
   const p = editing || {};
   $('#pform').reset();
-  ['name', 'nameMm', 'code', 'barcode', 'cat', 'unit', 'cost', 'sell'].forEach(k => setErr(k, ''));
+  ['name', 'nameMm', 'code', 'barcode', 'cat', 'unit', 'cost', 'sell', 'min'].forEach(k => setErr(k, ''));
   $('#pTitle').textContent = editing ? 'ကုန်ပစ္စည်း ပြင်ရန်' : 'ကုန်ပစ္စည်း အသစ်ထည့်ရန်';
   F('cat').value = ''; F('unit').value = ''; fillSelects();
   F('name').value = p.name || ''; F('nameMm').value = p.nameMm || '';
   F('code').value = p.code || ''; F('code').placeholder = editing ? '' : 'အလိုအလျောက်';
   F('barcode').value = p.barcode || ''; F('brand').value = p.brand || ''; F('desc').value = p.description || '';
+  F('min').value = p.minStock > 0 ? p.minStock : '';
   F('cat').value = p.categoryId || ''; F('unit').value = p.unitId || '';
   F('cost').value = p.costPrice ?? ''; F('sell').value = p.sellPrice ?? '';
   F('active').checked = editing ? p.active : true;
@@ -1141,6 +1152,7 @@ async function submitForm(e) {
     categoryId: F('cat').value, unitId: F('unit').value, active: F('active').checked,
   };
   const cost = parsePrice(F('cost').value), sell = parsePrice(F('sell').value);
+  const minRaw = F('min').value.trim(), minStock = minRaw === '' ? 0 : Number(minRaw);
   const others = S.products.filter(p => !editing || p.id !== editing.id);
   const errs = {};
   if (!v.name) errs.name = 'ကုန်ပစ္စည်းအမည် ထည့်ပါ';
@@ -1148,9 +1160,10 @@ async function submitForm(e) {
   if (!v.unitId) errs.unit = 'ယူနစ် ရွေးပါ';
   if (cost === null) errs.cost = 'ကုန်ကျစျေး ထည့်ပါ (0 သို့မဟုတ် ပိုများရမည်)';
   if (sell === null) errs.sell = 'ရောင်းစျေး ထည့်ပါ (0 သို့မဟုတ် ပိုများရမည်)';
+  if (!Number.isFinite(minStock) || minStock < 0) errs.min = '0 သို့မဟုတ် ပိုများသော ဂဏန်း ထည့်ပါ';
   if (v.code && others.some(p => norm(p.code) === norm(v.code))) errs.code = 'ဤကုဒ်ကို အသုံးပြုပြီးသား ဖြစ်သည်';
   if (v.barcode && others.some(p => p.barcode && norm(p.barcode) === norm(v.barcode))) errs.barcode = 'ဤဘားကုဒ်ကို အသုံးပြုပြီးသား ဖြစ်သည်';
-  ['name', 'code', 'barcode', 'cat', 'unit', 'cost', 'sell'].forEach(k => setErr(k, errs[k]));
+  ['name', 'code', 'barcode', 'cat', 'unit', 'cost', 'sell', 'min'].forEach(k => setErr(k, errs[k]));
   const first = Object.keys(errs)[0];
   if (first) { const el = F(first); if (el) el.focus(); return; }
 
@@ -1162,7 +1175,7 @@ async function submitForm(e) {
       code: v.code || (editing ? editing.code : await nextCode()),
       name: v.name, nameMm: v.nameMm, barcode: v.barcode, brand: v.brand, description: v.description,
       categoryId: v.categoryId, unitId: v.unitId, active: v.active,
-      costPrice: cost, sellPrice: sell, image: pendingImage, updatedAt: now,
+      costPrice: cost, sellPrice: sell, minStock: Math.round(minStock * 1000) / 1000, image: pendingImage, updatedAt: now,
     });
     await idb.put('products', p);
     if (editing) S.products[S.products.indexOf(editing)] = p; else S.products.push(p);
@@ -1187,6 +1200,7 @@ function openView(id) {
       <div><dt>ကုန်ကျစျေး</dt><dd>${money(p.costPrice)}</dd></div>
       <div><dt>ရောင်းစျေး</dt><dd>${money(p.sellPrice)}</dd></div>
       <div><dt>လက်ကျန်စတော့</dt><dd>${qty(p.stock)} ${esc(unitName(p.unitId))}</dd></div>
+    ${p.minStock > 0 ? `<div><dt>အနည်းဆုံးလက်ကျန်</dt><dd>${qty(p.minStock)} ${esc(unitName(p.unitId))}</dd></div>` : ''}
       <div><dt>အမြတ်</dt><dd style="${m < 0 ? 'color:var(--danger)' : ''}">${m < 0 ? '-' : ''}${money(Math.abs(m))}</dd></div>
       <div><dt>ဘားကုဒ်</dt><dd>${esc(p.barcode || '-')}</dd></div>
       <div><dt>ကုန်အမှတ်တံဆိပ်</dt><dd>${esc(p.brand || '-')}</dd></div>
