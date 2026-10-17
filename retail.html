@@ -512,7 +512,7 @@ const MENU = [
     { id: 'r-trade',    label: 'ကုန်သွယ်မှု အစီရင်ခံစာ',   icon: 'list', off: true },
   ]},
   { title: 'ပြင်ဆင်မှု', items: [
-    { id: 's-print',    label: 'ပရင့်ဆက်တင်',   icon: 'printer', sub: LIST_SUB },
+    { id: 's-print',    label: 'ပရင့်ဆက်တင်',   icon: 'printer' },
     { id: 's-business', label: 'လုပ်ငန်းဆက်တင်', icon: 'building', sub: LIST_SUB },
   ]},
 ];
@@ -1176,6 +1176,19 @@ function renderHist() {
 }
 
 /* ---------- Routing hook ---------- */
+/* ---------- Barcode scanner ---------- */
+function startScan() {
+  if (!window.POSScan) return;
+  window.POSScan.start(code => {
+    if (document.querySelector('dialog[open]')) return false;
+    const q = norm(code.trim());
+    const hit = S.products.find(p => norm(p.barcode) === q || norm(p.code) === q);
+    if (!hit) { toast('ဘားကုဒ် မတွေ့ပါ: ' + code); return 'miss'; }
+    if (!hit.active) { toast('ဤကုန်ပစ္စည်းကို ပိတ်ထားသည်'); return 'miss'; }
+    return addToCart(hit.id) ? 'ok' : 'miss';
+  });
+}
+
 window.showPage = async function () {
   titleEl.textContent = 'လက်လီအရောင်း';
   await ready;
@@ -1185,8 +1198,85 @@ window.showPage = async function () {
       <p>Chrome သို့မဟုတ် Edge ဖြင့် ဖွင့်ပါ။ (Private/Incognito mode တွင် အလုပ်မလုပ်နိုင်ပါ)</p></div>`;
     return;
   }
-  window.POS.ensureShared(); ensureDlgs(); mount();
+  window.POS.ensureShared(); ensureDlgs(); mount(); startScan();
 };
+})();
+</script>
+<script>
+/* ---------- Barcode scanner support ----------
+   Bluetooth / USB scanners pair as a keyboard: they "type" the code very fast and press Enter.
+   A burst of >= 4 characters, each < 70 ms apart, ending in Enter is treated as a scan. */
+(() => {
+  const DEF = { scanEnabled: true, scanBeep: true };
+  const MIN_LEN = 4, GAP = 70;
+  let cfg = { ...DEF }, handler = null, ctx = null;
+  let buf = '', last = 0, t0 = 0, el0 = null, val0 = '';
+
+  function loadCfg() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('pos-db', 3);
+        r.onupgradeneeded = () => {
+          ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+            if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
+          });
+        };
+        r.onsuccess = () => {
+          const db = r.result;
+          try {
+            const q = db.transaction('meta').objectStore('meta').get('settings');
+            q.onsuccess = () => { cfg = { ...DEF, ...((q.result && q.result.value) || {}) }; db.close(); res(); };
+            q.onerror = () => { db.close(); res(); };
+          } catch (e) { db.close(); res(); }
+        };
+        r.onerror = () => res();
+      } catch (e) { res(); }
+    });
+  }
+
+  function beep(ok) {
+    if (!cfg.scanBeep) return;
+    try {
+      const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+      ctx = ctx || new A(); if (ctx.state === 'suspended') ctx.resume();
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = ok ? 1200 : 280; g.gain.value = 0.08;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + (ok ? 0.08 : 0.25));
+    } catch (e) { /* no sound */ }
+  }
+
+  const editable = e => e && (e.tagName === 'INPUT' || e.tagName === 'TEXTAREA') && typeof e.value === 'string' &&
+    !['checkbox', 'radio', 'button', 'file', 'submit'].includes(e.type);
+  const reset = () => { buf = ''; last = 0; el0 = null; val0 = ''; };
+
+  function onKey(e) {
+    if (!handler || !cfg.scanEnabled) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    const now = performance.now();
+    if (e.key === 'Enter') {
+      const isScan = buf.length >= MIN_LEN && now - last <= GAP * 2;
+      if (!isScan) { reset(); return; }
+      const code = buf, ms = Math.round(now - t0), a = el0, v = val0;
+      reset();
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (editable(a)) { a.value = v; a.dispatchEvent(new Event('input', { bubbles: true })); }   // undo the typed digits
+      const res = handler(code, { len: code.length, ms });
+      if (res !== false) beep(res !== 'miss');
+      return;
+    }
+    if (!e.key || e.key.length !== 1) return;
+    if (now - last > GAP) { buf = ''; t0 = now; el0 = document.activeElement; val0 = editable(el0) ? el0.value : ''; }
+    buf += e.key; last = now;
+  }
+  document.addEventListener('keydown', onKey, true);
+
+  window.POSScan = {
+    start(fn) { handler = fn; return loadCfg(); },   // fn(code, {len, ms}) -> 'ok' | 'miss' | false (not handled)
+    stop() { handler = null; reset(); },
+    reload: loadCfg,
+    beep,
+  };
 })();
 </script>
 <script>

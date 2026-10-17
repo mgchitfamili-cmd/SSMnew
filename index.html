@@ -374,7 +374,40 @@
   .vrow { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
   .due { color: var(--danger); font-weight: 600; }
   .chip.debt { background: var(--danger-soft); color: var(--danger); }
-</style>
+
+  /* =====================================================
+     အနှစ်ချုပ် (Summary) page
+     ===================================================== */
+  .sm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (min-width: 700px) { .sm-grid { grid-template-columns: repeat(4, 1fr); } }
+  .sm-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+    display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  }
+  .sm-card .l { font-size: 13px; color: var(--muted); }
+  .sm-card .v { font-size: 20px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+  .sm-card .s { font-size: 13px; color: var(--muted); }
+  .sm-card.hl { background: var(--accent-soft); border-color: transparent; }
+  .sm-card.hl .v { color: var(--accent); }
+  .sm-card.warn .v { color: var(--danger); }
+  .sm-h { margin: 22px 2px 10px; font-size: 16px; font-weight: 700; }
+  .sm-cols { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 900px) { .sm-cols { grid-template-columns: 1fr 1fr; } }
+  .sm-list { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .sm-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+  .sm-row:first-child { border-top: 0; }
+  .sm-row .n { min-width: 0; }
+  .sm-row .n b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .sm-row .n span { font-size: 13px; color: var(--muted); }
+  .sm-row .a { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .sm-empty { padding: 22px 14px; text-align: center; color: var(--muted); }
+  .sm-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+  .sm-quick a {
+    min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface);
+    color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .sm-quick a.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 </style>
 </head>
 <body data-page="summary" data-title="အနှစ်ချုပ်">
@@ -470,7 +503,7 @@ const MENU = [
     { id: 'r-trade',    label: 'ကုန်သွယ်မှု အစီရင်ခံစာ',   icon: 'list', off: true },
   ]},
   { title: 'ပြင်ဆင်မှု', items: [
-    { id: 's-print',    label: 'ပရင့်ဆက်တင်',   icon: 'printer', sub: LIST_SUB },
+    { id: 's-print',    label: 'ပရင့်ဆက်တင်',   icon: 'printer' },
     { id: 's-business', label: 'လုပ်ငန်းဆက်တင်', icon: 'building', sub: LIST_SUB },
   ]},
 ];
@@ -586,6 +619,327 @@ document.addEventListener('touchend', () => {
 });
 
 render();
+</script>
+<script>
+/* ---------- အနှစ်ချုပ် (Summary): read-only view over the shared pos-db ---------- */
+(() => {
+  const DAY = 86400000;
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = n => Math.round(Number(n) || 0).toLocaleString('en-US') + ' ကျပ်';
+  const qty = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
+
+  function openDB() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('pos-db', 3);
+      r.onupgradeneeded = () => {            // same stores as the other pages, in case this page opens first
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+          if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
+        });
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+  }
+  const all = (db, n) => new Promise((res, rej) => {
+    const q = db.transaction(n).objectStore(n).getAll();
+    q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+  });
+
+  const card = (l, v, s = '', cls = '') =>
+    `<div class="sm-card ${cls}"><span class="l">${l}</span><span class="v">${v}</span>${s ? `<span class="s">${s}</span>` : ''}</div>`;
+
+  const profitOf = sale => sale.total - sale.items.reduce((a, it) => a + (it.cost || 0) * it.qty, 0);
+  const pad = n => String(n).padStart(2, '0');
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  async function renderSummary() {
+    const box = document.getElementById('content');
+    box.innerHTML = '<div class="pg"><p>ဖတ်နေသည်…</p></div>';
+    let products, sales, purchases;
+    try {
+      const db = await openDB();
+      [products, sales, purchases] = await Promise.all([all(db, 'products'), all(db, 'sales'), all(db, 'purchases')]);
+    } catch (e) {
+      console.error(e);
+      box.innerHTML = '<div class="pg"><div class="sm-list"><div class="sm-empty">ဒေတာ ဖတ်၍ မရပါ</div></div></div>';
+      return;
+    }
+
+    const now = new Date();
+    const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const m0 = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const todayStr = ymd(now), monthStr = todayStr.slice(0, 7);
+
+    const sToday = sales.filter(s => s.createdAt >= t0 && s.createdAt < t0 + DAY);
+    const sMonth = sales.filter(s => s.createdAt >= m0);
+    const pMonth = purchases.filter(p => (p.date || '').startsWith(monthStr));
+    const sum = (a, f) => a.reduce((x, o) => x + f(o), 0);
+
+    const active = products.filter(p => p.active !== false);
+    const outOf = active.filter(p => !(p.stock > 0));
+    const stockValue = sum(active, p => Math.max(0, p.stock || 0) * (p.costPrice || 0));
+    const debt = sum(purchases, p => Math.max(0, p.total - p.paid));
+    const debtN = purchases.filter(p => p.total > p.paid).length;
+
+    // best sellers this month (by quantity)
+    const byP = new Map();
+    sMonth.forEach(s => s.items.forEach(it => {
+      const o = byP.get(it.productId) || { name: it.name, unit: it.unit, qty: 0, amt: 0 };
+      o.qty += it.qty; o.amt += it.qty * it.price; byP.set(it.productId, o);
+    }));
+    const top = [...byP.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
+    const recent = [...sales].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+    const outList = outOf.slice(0, 6);
+
+    const hm = t => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+    const rows = (arr, f, empty) => arr.length ? arr.map(f).join('') : `<div class="sm-empty">${empty}</div>`;
+
+    box.innerHTML = `<div class="pg">
+      <div class="sm-quick">
+        <a class="primary" href="retail.html">လက်လီအရောင်း</a>
+        <a href="purchase.html?new=1">ဝယ်ယူမှု အသစ်</a>
+      </div>
+
+      <h2 class="sm-h">ယနေ့</h2>
+      <div class="sm-grid">
+        ${card('ရောင်းရငွေ', money(sum(sToday, s => s.total)), `${sToday.length} ကြိမ်`, 'hl')}
+        ${card('အမြတ်', money(sum(sToday, profitOf)), 'ကုန်ကျစျေးနုတ်ပြီး')}
+        ${card('လျှော့စျေး', money(sum(sToday, s => s.discount || 0)))}
+        ${card('ရောင်းရသော ပစ္စည်း', qty(sum(sToday, s => sum(s.items, i => i.qty))), 'စုစုပေါင်း အရေအတွက်')}
+      </div>
+
+      <h2 class="sm-h">ယခုလ</h2>
+      <div class="sm-grid">
+        ${card('ရောင်းရငွေ', money(sum(sMonth, s => s.total)), `${sMonth.length} ကြိမ်`)}
+        ${card('အမြတ်', money(sum(sMonth, profitOf)))}
+        ${card('ဝယ်ယူမှု', money(sum(pMonth, p => p.total)), `${pMonth.length} စာရင်း`)}
+        ${card('ပေးရန်ကျန် အကြွေး', money(debt), debtN ? `${debtN} စာရင်း` : 'မရှိပါ', debt > 0 ? 'warn' : '')}
+      </div>
+
+      <h2 class="sm-h">ကုန်ပစ္စည်း</h2>
+      <div class="sm-grid">
+        ${card('စုစုပေါင်း', qty(active.length), 'အသုံးပြုနေသော')}
+        ${card('ကုန်နေသော', qty(outOf.length), '', outOf.length ? 'warn' : '')}
+        ${card('လက်ကျန် တန်ဖိုး', money(stockValue), 'ကုန်ကျစျေးအရ')}
+      </div>
+
+      <div class="sm-cols">
+        <div>
+          <h2 class="sm-h">ယခုလ အရောင်းရဆုံး</h2>
+          <div class="sm-list">${rows(top, t => `<div class="sm-row"><div class="n"><b>${esc(t.name)}</b><span>${qty(t.qty)} ${esc(t.unit)}</span></div><div class="a">${money(t.amt)}</div></div>`, 'ရောင်းချမှု မရှိသေးပါ')}</div>
+        </div>
+        <div>
+          <h2 class="sm-h">နောက်ဆုံး ရောင်းချမှုများ</h2>
+          <div class="sm-list">${rows(recent, s => `<div class="sm-row"><div class="n"><b>${esc(s.no)}</b><span>${hm(s.createdAt)} · ${s.items.length} မျိုး</span></div><div class="a">${money(s.total)}</div></div>`, 'ရောင်းချမှု မရှိသေးပါ')}</div>
+        </div>
+      </div>
+
+      ${outList.length ? `<h2 class="sm-h">ကုန်နေသော ပစ္စည်းများ</h2>
+      <div class="sm-list">${outList.map(p => `<div class="sm-row"><div class="n"><b>${esc(p.nameMm || p.name)}</b><span>${esc(p.code || '')}</span></div><div class="a">${qty(p.stock || 0)}</div></div>`).join('')}</div>` : ''}
+    </div>`;
+  }
+
+  const prev = window.showPage;
+  window.showPage = function (id, label) {
+    if (id === 'summary') renderSummary(); else prev(id, label);
+  };
+  // refresh when returning to the tab / via back button
+  window.addEventListener('pageshow', e => { if (e.persisted && document.body.dataset.page === 'summary') renderSummary(); });
+})();
+</script>
+<script>
+/* ---------- Barcode scanner support ----------
+   Bluetooth / USB scanners pair as a keyboard: they "type" the code very fast and press Enter.
+   A burst of >= 4 characters, each < 70 ms apart, ending in Enter is treated as a scan. */
+(() => {
+  const DEF = { scanEnabled: true, scanBeep: true };
+  const MIN_LEN = 4, GAP = 70;
+  let cfg = { ...DEF }, handler = null, ctx = null;
+  let buf = '', last = 0, t0 = 0, el0 = null, val0 = '';
+
+  function loadCfg() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('pos-db', 3);
+        r.onupgradeneeded = () => {
+          ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+            if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
+          });
+        };
+        r.onsuccess = () => {
+          const db = r.result;
+          try {
+            const q = db.transaction('meta').objectStore('meta').get('settings');
+            q.onsuccess = () => { cfg = { ...DEF, ...((q.result && q.result.value) || {}) }; db.close(); res(); };
+            q.onerror = () => { db.close(); res(); };
+          } catch (e) { db.close(); res(); }
+        };
+        r.onerror = () => res();
+      } catch (e) { res(); }
+    });
+  }
+
+  function beep(ok) {
+    if (!cfg.scanBeep) return;
+    try {
+      const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+      ctx = ctx || new A(); if (ctx.state === 'suspended') ctx.resume();
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = ok ? 1200 : 280; g.gain.value = 0.08;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + (ok ? 0.08 : 0.25));
+    } catch (e) { /* no sound */ }
+  }
+
+  const editable = e => e && (e.tagName === 'INPUT' || e.tagName === 'TEXTAREA') && typeof e.value === 'string' &&
+    !['checkbox', 'radio', 'button', 'file', 'submit'].includes(e.type);
+  const reset = () => { buf = ''; last = 0; el0 = null; val0 = ''; };
+
+  function onKey(e) {
+    if (!handler || !cfg.scanEnabled) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    const now = performance.now();
+    if (e.key === 'Enter') {
+      const isScan = buf.length >= MIN_LEN && now - last <= GAP * 2;
+      if (!isScan) { reset(); return; }
+      const code = buf, ms = Math.round(now - t0), a = el0, v = val0;
+      reset();
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (editable(a)) { a.value = v; a.dispatchEvent(new Event('input', { bubbles: true })); }   // undo the typed digits
+      const res = handler(code, { len: code.length, ms });
+      if (res !== false) beep(res !== 'miss');
+      return;
+    }
+    if (!e.key || e.key.length !== 1) return;
+    if (now - last > GAP) { buf = ''; t0 = now; el0 = document.activeElement; val0 = editable(el0) ? el0.value : ''; }
+    buf += e.key; last = now;
+  }
+  document.addEventListener('keydown', onKey, true);
+
+  window.POSScan = {
+    start(fn) { handler = fn; return loadCfg(); },   // fn(code, {len, ms}) -> 'ok' | 'miss' | false (not handled)
+    stop() { handler = null; reset(); },
+    reload: loadCfg,
+    beep,
+  };
+})();
+</script>
+<script>
+/* ---------- ပရင့်ဆက်တင် (Print settings page) ---------- */
+(() => {
+  const DEF = { scanEnabled: true, scanBeep: true, paper: 58, shopName: '', shopAddr: '', shopPhone: '',
+                footer: 'ကျေးဇူးတင်ပါသည်', copies: 1, autoPrint: false };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function openDB() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('pos-db', 3);
+      r.onupgradeneeded = () => {
+        ['products', 'categories', 'units', 'meta', 'purchases', 'sales'].forEach(n => {
+          if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
+        });
+      };
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  }
+  async function loadSettings() {
+    const db = await openDB();
+    try {
+      return await new Promise((res, rej) => {
+        const q = db.transaction('meta').objectStore('meta').get('settings');
+        q.onsuccess = () => res({ ...DEF, ...((q.result && q.result.value) || {}) }); q.onerror = () => rej(q.error);
+      });
+    } finally { db.close(); }
+  }
+  async function saveSettings(v) {
+    const db = await openDB();
+    try {
+      await new Promise((res, rej) => {
+        const t = db.transaction('meta', 'readwrite'); t.objectStore('meta').put({ id: 'settings', value: v });
+        t.oncomplete = res; t.onerror = () => rej(t.error);
+      });
+    } finally { db.close(); }
+  }
+
+  let tt;
+  function toast(msg) {
+    let el = document.getElementById('toast');
+    if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(tt); tt = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  async function renderSettings() {
+    const box = document.getElementById('content');
+    let v;
+    try { v = await loadSettings(); }
+    catch (e) { console.error(e); box.innerHTML = '<div class="pg"><div class="sm-list"><div class="sm-empty">ဒေတာ ဖတ်၍ မရပါ</div></div></div>'; return; }
+
+    box.innerHTML = `<div class="pg" style="max-width:720px">
+      <h2 class="sm-h" style="margin-top:4px">ဘားကုဒ် စကင်နာ</h2>
+      <div class="sm-list" style="padding:16px; display:grid; gap:14px">
+        <label class="check"><input type="checkbox" id="st-scan" ${v.scanEnabled ? 'checked' : ''}><span>စကင်နာ အသုံးပြုမည်</span></label>
+        <label class="check"><input type="checkbox" id="st-beep" ${v.scanBeep ? 'checked' : ''}><span>စကင်ဖတ်တိုင်း အသံပေးမည်</span></label>
+        <p style="margin:0; font-size:14px">စကင်နာကို ဖုန်း/ကွန်ပျူတာ၏ Bluetooth ဆက်တင်တွင် keyboard (HID) အဖြစ် pair လုပ်ပါ။ ဖတ်ပြီးတိုင်း Enter ပို့သော ပုံမှန်ဆက်တင်ဖြစ်ရမည်။ လက်လီအရောင်းတွင် ဖတ်လျှင် ပစ္စည်း cart ထဲ ဝင်မည်၊ ကုန်ပစ္စည်းစာမျက်နှာတွင် ဘားကုဒ်ကွက်ထဲ ဝင်မည်။</p>
+        <div class="sm-card hl" id="st-test" aria-live="polite">
+          <span class="l">စမ်းသပ်ရန်</span>
+          <span class="v" id="st-res">ဘားကုဒ်တစ်ခု ဖတ်ကြည့်ပါ</span>
+          <span class="s" id="st-info">ဤစာမျက်နှာပေါ်တွင် စကင်နာဖြင့် ဖတ်လိုက်ပါ</span>
+        </div>
+      </div>
+
+      <h2 class="sm-h">ဘောက်ချာ</h2>
+      <div class="sm-list" style="padding:16px">
+        <div class="fg">
+          <div class="field"><label for="st-paper">စာရွက်အကျယ်</label>
+            <select id="st-paper"><option value="58" ${v.paper == 58 ? 'selected' : ''}>58 mm</option><option value="80" ${v.paper == 80 ? 'selected' : ''}>80 mm</option></select></div>
+          <div class="field"><label for="st-copies">ကော်ပီ အရေအတွက်</label>
+            <input type="number" id="st-copies" min="1" max="5" step="1" inputmode="numeric" value="${esc(v.copies)}"><div class="msg"></div></div>
+          <div class="field full"><label for="st-name">ဆိုင်အမည်</label><input type="text" id="st-name" value="${esc(v.shopName)}" autocomplete="off"></div>
+          <div class="field full"><label for="st-addr">လိပ်စာ</label><input type="text" id="st-addr" value="${esc(v.shopAddr)}" autocomplete="off"></div>
+          <div class="field"><label for="st-phone">ဖုန်းနံပါတ်</label><input type="text" id="st-phone" inputmode="tel" value="${esc(v.shopPhone)}" autocomplete="off"></div>
+          <div class="field"><label for="st-foot">အောက်ခြေစာ</label><input type="text" id="st-foot" value="${esc(v.footer)}" autocomplete="off"></div>
+          <label class="check full"><input type="checkbox" id="st-auto" ${v.autoPrint ? 'checked' : ''}><span>ရောင်းပြီးတိုင်း ဘောက်ချာ အလိုအလျောက် ပရင့်ထုတ်မည်</span></label>
+        </div>
+        <p style="margin:14px 0 0; font-size:14px">ပရင့်စက် ချိတ်ဆက်ခြင်းကို နောက်အဆင့်တွင် ထည့်သွင်းမည်။ ဒီတန်ဖိုးများကို အဲဒီအခါ ဘောက်ချာတွင် သုံးမည်။</p>
+        <div style="display:flex; justify-content:flex-end; margin-top:16px">
+          <button type="button" class="btn primary" id="st-save" style="min-width:140px">သိမ်းမည်</button>
+        </div>
+      </div>
+    </div>`;
+
+    const $ = id => document.getElementById(id);
+    $('st-save').addEventListener('click', async () => {
+      const copies = Number($('st-copies').value);
+      const wrap = $('st-copies').closest('.field'), msg = wrap.querySelector('.msg');
+      if (!Number.isInteger(copies) || copies < 1 || copies > 5) {
+        wrap.classList.add('err'); msg.textContent = '၁ မှ ၅ အတွင်း ထည့်ပါ'; $('st-copies').focus(); return;
+      }
+      wrap.classList.remove('err');
+      const next = {
+        ...v, scanEnabled: $('st-scan').checked, scanBeep: $('st-beep').checked,
+        paper: Number($('st-paper').value), copies,
+        shopName: $('st-name').value.trim(), shopAddr: $('st-addr').value.trim(),
+        shopPhone: $('st-phone').value.trim(), footer: $('st-foot').value.trim(),
+        autoPrint: $('st-auto').checked,
+      };
+      try { await saveSettings(next); v = next; await window.POSScan.reload(); toast('သိမ်းပြီးပါပြီ'); }
+      catch (e) { console.error(e); toast('သိမ်း၍ မရပါ'); }
+    });
+
+    window.POSScan.start((code, m) => {
+      $('st-res').textContent = code;
+      $('st-info').textContent = `${m.len} လုံး · ${m.ms} ms ဖြင့် ဖတ်ပြီး`;
+      return 'ok';
+    });
+  }
+
+  const prev = window.showPage;
+  window.showPage = function (id, label) {
+    if (id.split('/')[0] === 's-print') renderSettings();
+    else { if (window.POSScan) window.POSScan.stop(); prev(id, label); }
+  };
+})();
 </script>
 <script>
 /* Runs last on every page: opens the right page + highlights the menu */
