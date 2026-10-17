@@ -470,6 +470,7 @@ const MENU = [
     { id: 'pricing',   label: 'ရောင်းစျေးနှင့် လျှော့စျေး', icon: 'percent' },
     { id: 'sales',     label: 'ရောင်းချမှု',          icon: 'chart', sub: LIST_SUB },
     { id: 'delivery',  label: 'Delivery စာရင်း',     icon: 'truck' },
+    { id: 'closing',   label: 'နေ့စဉ် ငွေစာရင်းပိတ်', icon: 'wallet' },
     { id: 'adjust',    label: 'စာရင်းညှိ',            icon: 'gear', sub: LIST_SUB },
     { id: 'expense',   label: 'အသုံးစရိတ်',          icon: 'minusCircle', sub: LIST_SUB },
     { id: 'debt',      label: 'အကြွေး ပေးချေမှု',     icon: 'card', sub: LIST_SUB },
@@ -544,7 +545,7 @@ const ROUTES = {
   'products/list': 'products.html', 'products/new': 'products.html?new=1',
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
   'summary': 'index.html', 'retail': 'retail.html',
-  'sales/list': 'sales.html', 'sales/new': 'retail.html', 'delivery': 'delivery.html',
+  'sales/list': 'sales.html', 'sales/new': 'retail.html', 'delivery': 'delivery.html', 'closing': 'closing.html',
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
@@ -1234,5 +1235,6 @@ window.showPage = async function (id) {
   setActive(id, label);
 })();
 </script>
+<script src="lowstock.js"></script>
 </body>
 </html>
