@@ -1047,6 +1047,11 @@ function pickFirst() {
 function addToCart(id) {
   const p = find(id); if (!p) return false;
   if (!(p.stock > 0)) { toast('ကုန်နေပါပြီ'); return false; }
+  if (p.expiryDate) {                                   // ရက်ကုန်ပြီးသော ပစ္စည်း ရောင်းမိခြင်းမှ သတိပေးရန်
+    const [ey, em, ed] = String(p.expiryDate).split('-').map(Number), tn = new Date();
+    const left = Math.round((new Date(ey, em - 1, ed) - new Date(tn.getFullYear(), tn.getMonth(), tn.getDate())) / 86400000);
+    if (left < 0) toast(`⚠ ${p.nameMm || p.name} - ရက်ကုန်ပြီးသွားပါပြီ`);
+  }
   const i = cart.findIndex(it => it.productId === id);
   if (i >= 0) {
     const next = round3(n(cart[i].qty) + 1);

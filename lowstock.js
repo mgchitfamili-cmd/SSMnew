@@ -1,5 +1,6 @@
 /* lowstock.js — လက်ကျန်နည်း သတိပေးချက် (shared by all pages)
    1) ဘေးမီနူးက "ကုန်ပစ္စည်း" နှင့် "ပစ္စည်းစာရင်း အစီရင်ခံစာ" ပေါ်မှာ အရေအတွက် badge ပြသည်
+   (လက်ကျန်နည်းသော ပစ္စည်းများအပြင် ရက်ကုန်ခါနီး / ရက်ကုန်ပြီး ပစ္စည်းများကိုပါ ထည့်ရေတွက်သည်)
    2) အနှစ်ချုပ် စာမျက်နှာ ဖွင့်တိုင်း (session တစ်ခုလျှင် တစ်ကြိမ်) အောက်ခြေမှာ သတိပေးဘား ပြသည်
    3) လက်လီအရောင်း ပြီးတိုင်း လက်ကျန်နည်းသွားသော ပစ္စည်းများကို ပြသည် (POSLowStock.afterSale) */
 (() => {
@@ -10,6 +11,18 @@
 
   const isOut = p => p.active !== false && !(p.stock > 0);
   const isLow = p => p.active !== false && Number(p.minStock) > 0 && p.stock > 0 && !(p.stock > Number(p.minStock));
+  // ရက်ကုန်ရက် (လက်ကျန်ရှိသော ပစ္စည်းအတွက်သာ): <0 = ကုန်ပြီး, <= ကြိုတင်သတိပေးရက် (မူလ ၃၀) = ကုန်ခါနီး
+  const daysLeft = p => {
+    if (!p.expiryDate) return null;
+    const [y, m, d] = String(p.expiryDate).split('-').map(Number), t = new Date();
+    const v = Math.round((new Date(y, m - 1, d) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000);
+    return Number.isNaN(v) ? null : v;
+  };
+  const expState = p => {
+    if (p.active === false || !(p.stock > 0)) return '';
+    const d = daysLeft(p); if (d === null) return '';
+    return d < 0 ? 'expired' : d <= (Number(p.expiryWarnDays) > 0 ? Number(p.expiryWarnDays) : 30) ? 'soon' : '';
+  };
 
   function loadProducts() {
     return new Promise(res => {
@@ -34,7 +47,9 @@
     // "ကုန်နေ" ကို minStock သတ်မှတ်ထားသော ပစ္စည်းများအတွက်သာ သတိပေးသည် (stock မထည့်ရသေးသော ပစ္စည်းအသစ်များ မမှားစေရန်)
     const out = ps.filter(p => isOut(p) && Number(p.minStock) > 0);
     const low = ps.filter(isLow);
-    return { out, low, n: out.length + low.length };
+    const expired = ps.filter(p => expState(p) === 'expired'), soon = ps.filter(p => expState(p) === 'soon');
+    const n = new Set([...out, ...low, ...expired, ...soon].map(p => p.id)).size;   // ပစ္စည်းတစ်ခု နှစ်ကြိမ် မရေတွက်စေရန်
+    return { out, low, expired, soon, n };
   }
 
   /* ---------- drawer badge ---------- */
@@ -109,7 +124,10 @@
       const parts = [];
       if (s.low.length) parts.push(`လက်ကျန်နည်း ${s.low.length} မျိုး`);
       if (s.out.length) parts.push(`ကုန်နေ ${s.out.length} မျိုး`);
-      showBar(`⚠ ${parts.join(' · ')} — နှိပ်ကြည့်ရန်`, 'products.html?status=low', 9000);
+      if (s.expired.length) parts.push(`ရက်ကုန်ပြီး ${s.expired.length} မျိုး`);
+      if (s.soon.length) parts.push(`ရက်ကုန်ခါနီး ${s.soon.length} မျိုး`);
+      const stockIssue = s.low.length || s.out.length;      // လက်ကျန်ပြဿနာ မရှိဘဲ ရက်ကုန်မှုသာရှိလျှင် ရက်ကုန်စာရင်းသို့ တန်းသွားမည်
+      showBar(`⚠ ${parts.join(' · ')} — နှိပ်ကြည့်ရန်`, stockIssue ? 'products.html?status=low' : 'products.html?status=exp', 10000);
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

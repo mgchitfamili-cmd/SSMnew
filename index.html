@@ -710,6 +710,12 @@ render();
     const top = [...byP.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
     const recent = [...sales].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
     const isLow = p => Number(p.minStock) > 0 && !(p.stock > Number(p.minStock));
+    // ရက်ကုန်ခါနီး / ကုန်ပြီး (လက်ကျန်ရှိသော ပစ္စည်းများ)
+    const daysLeft = p => { const [y, m, d] = String(p.expiryDate).split('-').map(Number);
+      return Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / DAY); };
+    const expAll = active.filter(p => p.expiryDate && p.stock > 0).map(p => ({ p, d: daysLeft(p) }))
+      .filter(x => !Number.isNaN(x.d) && x.d <= (Number(x.p.expiryWarnDays) > 0 ? Number(x.p.expiryWarnDays) : 30)).sort((a, b) => a.d - b.d);
+    const expiredN = expAll.filter(x => x.d < 0).length;
     const lowN = active.filter(isLow).length;
     const outList = active.filter(p => !(p.stock > 0) || isLow(p)).sort((a, b) => (a.stock || 0) - (b.stock || 0)).slice(0, 10);
 
@@ -755,6 +761,7 @@ render();
         ${card('စုစုပေါင်း', qty(active.length), 'အသုံးပြုနေသော')}
         ${card('ကုန်နေသော', qty(outOf.length), '', outOf.length ? 'warn' : '')}
         ${card('လက်ကျန်နည်း', qty(lowN), 'သတ်မှတ်အနည်းဆုံးအောက်', lowN ? 'warn' : '')}
+        ${card('ရက်ကုန်ခါနီး', qty(expAll.length), expiredN ? `ကုန်ပြီး ${expiredN} မျိုး ပါဝင်သည်` : 'သတိပေးရက်အတွင်း', expAll.length ? 'warn' : '')}
         ${card('လက်ကျန် တန်ဖိုး', money(stockValue), 'ကုန်ကျစျေးအရ')}
       </div>
 
@@ -771,6 +778,9 @@ render();
 
       ${recvList.length ? `<h2 class="sm-h">ကောက်ရန်ကျန် အများဆုံး ဖောက်သည်များ</h2>
       <div class="sm-list">${recvList.map(([n, v]) => `<div class="sm-row"><div class="n"><b>${esc(n)}</b></div><div class="a">${money(v)}</div></div>`).join('')}</div>` : ''}
+
+      ${expAll.length ? `<h2 class="sm-h">ရက်ကုန်ခါနီး ပစ္စည်းများ</h2>
+      <div class="sm-list">${expAll.slice(0, 10).map(({ p, d }) => `<div class="sm-row"><div class="n"><b>${esc(p.nameMm || p.name)}</b><span>${esc(p.code || '')} · ရက်ကုန်ရက် ${esc(p.expiryDate)} · လက်ကျန် ${qty(p.stock)}</span></div><div class="a" style="color:var(--danger)">${d < 0 ? 'ကုန်ပြီး ' + (-d) + ' ရက်' : d === 0 ? 'ယနေ့ကုန်' : 'ကျန် ' + d + ' ရက်'}</div></div>`).join('')}</div>` : ''}
 
       ${outList.length ? `<h2 class="sm-h">ဖြည့်ရန် လိုသော ပစ္စည်းများ</h2>
       <div class="sm-list">${outList.map(p => `<div class="sm-row"><div class="n"><b>${esc(p.nameMm || p.name)}</b><span>${esc(p.code || '')}${p.minStock > 0 ? ' · အနည်းဆုံး ' + qty(p.minStock) : ''}</span></div><div class="a">${qty(p.stock || 0)}</div></div>`).join('')}</div>` : ''}
