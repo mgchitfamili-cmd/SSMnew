@@ -429,6 +429,7 @@
   .dl-sum span { font-size: 12px; color: var(--muted); }
   .dl-sum b { font-size: 15px; overflow-wrap: anywhere; }
 </style>
+<script src="acct.js"></script>
 </head>
 <body data-page="delivery" data-title="Delivery စာရင်း">
 
@@ -942,6 +943,7 @@ function ensureDlgs() {
     <div class="fg" style="margin-top:12px">
       <div class="field full" id="w-dlrec"><label for="dl-rec">လက်ခံရရှိငွေ (ကျပ်)</label>
         <input type="number" id="dl-rec" min="0" step="1" inputmode="numeric"><div class="msg"></div></div>
+      <div class="field full"><label for="dl-acct">ငွေလက်ခံသည့် အကောင့် (ငွေသား / KBZPay / ဘဏ် …)</label><select id="dl-acct"></select></div>
       <div class="field full"><label for="dl-note">မှတ်ချက်</label><input type="text" id="dl-note" autocomplete="off" placeholder="ကွာဟချက်ရှိလျှင် အကြောင်းရင်း"></div>
     </div>
     <div class="hint" id="dlsDiff" style="margin-top:8px"></div>
@@ -989,6 +991,7 @@ function openSettle(s) {
       ${d.mode === 'company' && chargeOf(s) ? `<div><span>ကုမ္ပဏီက နှုတ်မည့် delivery charge</span><span>- ${money(chargeOf(s))}</span></div>` : ''}
       <div class="grand"><span>ဆိုင်လက်ခံရမည့်ငွေ</span><span>${money(exp)}</span></div></div>`;
   $('#dl-rec').value = exp; $('#dl-note').value = '';
+  ACCT.fill($('#dl-acct'));
   const w = $('#w-dlrec'); w.classList.remove('err'); w.querySelector('.msg').textContent = '';
   updDiff();
   $('#dlset').showModal();
@@ -1005,7 +1008,8 @@ async function confirmSettle() {
   const v = window.POS.parsePrice($('#dl-rec').value), w = $('#w-dlrec');
   if (v === null) { w.classList.add('err'); w.querySelector('.msg').textContent = 'လက်ခံရရှိငွေ ထည့်ပါ'; return; }
   const now = Date.now();
-  const ns = { ...s, delivery: { ...s.delivery, status: 'settled', settledAt: now, deliveredAt: s.delivery.deliveredAt || now, received: v, note: $('#dl-note').value.trim() } };
+  const ns = { ...s, delivery: { ...s.delivery, status: 'settled', settledAt: now, deliveredAt: s.delivery.deliveredAt || now, received: v, note: $('#dl-note').value.trim(), acctId: $('#dl-acct').value || null } };
+  ACCT.remember($('#dl-acct').value);
   try { await commitSale(ns); } catch (err) { console.error(err); return toast('သိမ်း၍ မရပါ'); }
   S.sales[S.sales.indexOf(s)] = ns;
   $('#dlset').close(); renderList(); toast('ငွေလက်ခံမှု မှတ်ပြီးပါပြီ');

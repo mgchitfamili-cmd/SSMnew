@@ -819,6 +819,8 @@ function autoEntries(sales, purchases, expenses) {
   sales.forEach(s => {
     add('in', s.acctId, (s.paid || 0) - sumP(s) - (s.change || 0), ymd(s.createdAt), s.createdAt, `ရောင်းရငွေ · ${s.no}`, s.customerName || '');
     (s.payments || []).forEach(p => add('in', p.acctId, p.amount, p.date, p.createdAt, `အကြွေးလက်ခံ · ${s.no}`, s.customerName || p.note || ''));
+    const d = s.delivery;   // COD cash collected on delivery
+    if (d && d.status === 'settled' && d.acctId) add('in', d.acctId, d.received || 0, ymd(d.settledAt || s.createdAt), d.settledAt || s.createdAt, `COD လက်ခံ · ${s.no}`, s.customerName || d.note || '');
   });
   purchases.forEach(po => {
     add('out', po.acctId, (po.paid || 0) - sumP(po), po.date, po.createdAt, `ဝယ်ယူမှု · ${po.no}`, po.supplier || '');
