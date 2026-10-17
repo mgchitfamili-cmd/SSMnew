@@ -399,6 +399,7 @@
   .xp-b b { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 </style>
+<script src="acct.js"></script>
 </head>
 <body data-page="expense/list" data-title="အသုံးစရိတ်">
 
@@ -834,6 +835,7 @@ function ensureDlg() {
           <div class="xp-chips" id="xp-chips"></div>
           <div class="help">အောက်က စာရင်းမှ ရွေးပါ၊ သို့မဟုတ် အမျိုးအစားအသစ် ရိုက်ထည့်ပါ</div>
           <div class="msg"></div></div>
+        <div class="field full"><label for="xp-acct">ထုတ်သည့် ငွေအကောင့်</label><select id="xp-acct"></select></div>
         <div class="field full"><label for="xp-note">မှတ်ချက်</label>
           <input type="text" id="xp-note" autocomplete="off"></div>
       </div>
@@ -881,6 +883,7 @@ function openForm(item) {
   G('amount').value = item ? item.amount : '';
   G('cat').value = item ? item.category : '';
   G('note').value = item ? (item.note || '') : '';
+  ACCT.fill(G('acct'), item ? (item.acctId || '') : undefined);
   markChips();
   $('#xpdlg').showModal(); $('#xpdlg .db').scrollTop = 0;
   (item ? G('amount') : G('amount')).focus();
@@ -905,8 +908,9 @@ async function submitForm(e) {
   try {
     const old = editId ? X.items.find(x => x.id === editId) : null;
     const ex = old
-      ? { ...old, date, category, amount, note: G('note').value.trim(), updatedAt: Date.now() }
-      : { id: uid('ex'), createdAt: Date.now(), no: nextNo(), date, category, amount, note: G('note').value.trim() };
+      ? { ...old, date, category, amount, note: G('note').value.trim(), acctId: G('acct').value || null, updatedAt: Date.now() }
+      : { id: uid('ex'), createdAt: Date.now(), no: nextNo(), date, category, amount, note: G('note').value.trim(), acctId: G('acct').value || null };
+    ACCT.remember(G('acct').value);
     await commit({ put: ex });
     if (old) X.items[X.items.indexOf(old)] = ex; else X.items.push(ex);
     $('#xpdlg').close(); renderList();

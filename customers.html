@@ -376,6 +376,7 @@
   .chip.debt { background: var(--danger-soft); color: var(--danger); }
 
   </style>
+<script src="acct.js"></script>
 </head>
 <body data-page="customers" data-title="ဖောက်သည်">
 
@@ -988,6 +989,7 @@ function ensureCollect() {
       <div class="field" id="w-colamt"><label for="col-amt">လက်ခံငွေ (ကျပ်)</label>
         <input type="number" id="col-amt" min="1" step="1" inputmode="numeric"><div class="msg"></div></div>
       <div class="field"><label for="col-date">ရက်စွဲ</label><input type="date" id="col-date"></div>
+      <div class="field full"><label for="col-acct">ငွေလက်ခံသည့် အကောင့်</label><select id="col-acct"></select></div>
       <div class="field full"><label for="col-note">မှတ်ချက်</label><input type="text" id="col-note" autocomplete="off"></div>
     </div>
     <div class="hint" id="colAfter" style="margin-top:8px"></div>
@@ -1016,6 +1018,7 @@ function openCollect(pt) {
     <div class="psub" style="margin-top:6px">လက်ခံငွေကို အဟောင်းဆုံး ရောင်းချမှုမှ စ၍ နှုတ်မည်။</div>`;
   $('#col-amt').value = due; $('#col-date').value = ymdNow(); $('#col-note').value = '';
   const w = $('#w-colamt'); w.classList.remove('err'); w.querySelector('.msg').textContent = '';
+  ACCT.fill($('#col-acct'));
   updCol(); $('#coldlg').showModal();
 }
 async function confirmCollect() {
@@ -1025,12 +1028,13 @@ async function confirmCollect() {
   if (v === null || v <= 0) return err('လက်ခံငွေ ထည့်ပါ');
   if (v > due) return err(`ကျန်ငွေ ${money(due)} ထက် မများရပါ`);
   const date = $('#col-date').value || ymdNow(), note = $('#col-note').value.trim();
+  const acctId = $('#col-acct').value || null; ACCT.remember(acctId);
   let left = v; const changed = [];
   for (const r of dueSales(pt)) {
     if (left <= 0) break;
     const take = Math.min(left, dueOfS(r)); left -= take;
     changed.push({ ...r, paid: (r.paid || 0) + take,
-      payments: [...(r.payments || []), { id: window.POS.uid('pay'), createdAt: Date.now(), date, amount: take, note }] });
+      payments: [...(r.payments || []), { id: window.POS.uid('pay'), createdAt: Date.now(), date, amount: take, note, acctId }] });
   }
   try { await commit({ linked: changed }); } catch (e) { console.error(e); return toast('သိမ်း၍ မရပါ'); }
   syncRel(changed); $('#coldlg').close(); renderList();

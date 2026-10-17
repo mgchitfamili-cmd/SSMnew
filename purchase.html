@@ -376,6 +376,7 @@
   .chip.debt { background: var(--danger-soft); color: var(--danger); }
 </style>
 </style>
+<script src="acct.js"></script>
 </head>
 <body data-page="purchase/list" data-title="ဝယ်ယူမှု">
 
@@ -818,6 +819,7 @@ function ensureDlgs() {
       <div class="fg">
         <div class="field" id="w-ppaid"><label for="pu-paid">ပေးပြီးငွေ (ကျပ်)<span class="req">*</span></label>
           <input type="number" id="pu-paid" min="0" step="1" inputmode="numeric"><div class="msg"></div></div>
+        <div class="field"><label for="pu-acct">ပေးချေသည့် ငွေအကောင့်</label><select id="pu-acct"></select></div>
         <div class="field"><label for="pu-note">မှတ်ချက်</label><input type="text" id="pu-note" autocomplete="off"></div>
         <label class="check full"><input type="checkbox" id="pu-updcost" checked><span>ကုန်ကျစျေးကို ဤဝယ်စျေးအတိုင်း ပြင်မည်</span></label>
       </div>
@@ -956,6 +958,7 @@ function openForm() {
   ['pdate', 'pitems', 'ppaid'].forEach(k => setErr(k, ''));
   G('date').value = today();
   G('updcost').checked = true;
+  ACCT.fill(G('acct'));
   const fillSup = () => {
     G('suppliers').innerHTML = [...new Set([...supList.map(s => s.name), ...S.purchases.map(p => p.supplier)].filter(Boolean))]
       .map(v => `<option value="${esc(v)}">`).join('');
@@ -989,6 +992,7 @@ async function submitForm(e) {
   const seqBefore = S.poSeq;
   try {
     const now = Date.now(), upd = G('updcost').checked;
+    ACCT.remember(G('acct').value);
     const po = {
       id: uid('po'), createdAt: now, no: nextNo(), date,
       supplier: G('supplier').value.trim(), supplierId: supIdOf(G('supplier').value.trim()), ref: G('ref').value.trim(), note: G('note').value.trim(),
@@ -996,7 +1000,7 @@ async function submitForm(e) {
         const p = find(it.productId);
         return { productId: it.productId, name: titleOf(p), unit: unitName(p.unitId), qty: Number(it.qty), cost: Math.round(Number(it.cost)) };
       }),
-      total, paid,
+      total, paid, acctId: G('acct').value || null,
     };
     const changed = po.items.map(it => {
       const p = find(it.productId);

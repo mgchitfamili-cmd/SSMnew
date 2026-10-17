@@ -778,7 +778,7 @@ const DEFAULTS = [['ငွေသား', 0], ['KBZPay', 1], ['Wave', 1], ['ဘ�
 const pad = n => String(n).padStart(2, '0');
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const dmy = s => String(s).split('-').reverse().join('/');
-const A = { accts: [], txs: [], filter: 'all' };
+const A = { accts: [], txs: [], filter: 'all', limit: 100 };
 
 document.head.insertAdjacentHTML('beforeend', `<style>
   .ac-total { margin: 14px 0; padding: 16px 18px; border-radius: 18px; background: var(--accent); color: var(--on-accent); }
@@ -807,17 +807,39 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 const bal = a => (Number(a.opening) || 0) + A.txs.reduce((s, t) => s + (t.to === a.id ? t.amount : 0) - (t.from === a.id ? t.amount : 0), 0);
 const nameOf = id => (A.accts.find(a => a.id === id) || {}).name || '(ဖျက်ပြီး)';
 
+const ymd = ms => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const sumP = r => (r.payments || []).reduce((t, p) => t + (p.amount || 0), 0);
+
+/* entries derived from sales / purchases / expenses that were given an account (acctId) */
+function autoEntries(sales, purchases, expenses) {
+  const out = [];
+  const add = (type, acctId, amount, date, createdAt, title, note) => {
+    if (acctId && amount > 0) out.push({ id: null, auto: true, type, from: type === 'out' ? acctId : null, to: type === 'in' ? acctId : null, amount, date, createdAt: createdAt || 0, title, note });
+  };
+  sales.forEach(s => {
+    add('in', s.acctId, (s.paid || 0) - sumP(s) - (s.change || 0), ymd(s.createdAt), s.createdAt, `ရောင်းရငွေ · ${s.no}`, s.customerName || '');
+    (s.payments || []).forEach(p => add('in', p.acctId, p.amount, p.date, p.createdAt, `အကြွေးလက်ခံ · ${s.no}`, s.customerName || p.note || ''));
+  });
+  purchases.forEach(po => {
+    add('out', po.acctId, (po.paid || 0) - sumP(po), po.date, po.createdAt, `ဝယ်ယူမှု · ${po.no}`, po.supplier || '');
+    (po.payments || []).forEach(p => add('out', p.acctId, p.amount, p.date, p.createdAt, `အကြွေးပေးချေ · ${po.no}`, po.supplier || p.note || ''));
+  });
+  expenses.forEach(e => add('out', e.acctId, e.amount, e.date, e.createdAt, `အသုံးစရိတ် · ${e.category}`, e.note || ''));
+  return out;
+}
+
 async function load() {
-  const meta = await idb.all('meta');
+  const [meta, sales, purchases, expenses] = await Promise.all(['meta', 'sales', 'purchases', 'expenses'].map(n => idb.all(n)));
   A.accts = meta.filter(m => String(m.id).startsWith('acct-')).sort((a, b) => a.createdAt - b.createdAt);
-  A.txs = meta.filter(m => String(m.id).startsWith('acx-'));
+  const manual = meta.filter(m => String(m.id).startsWith('acx-'));
+  A.txs = [...manual, ...autoEntries(sales, purchases, expenses)];
 }
 
 function render() {
   const box = $('#content');
   if (!A.accts.length) {
     box.innerHTML = `<div class="pg"><div class="empty"><h3>ငွေအကောင့် မရှိသေးပါ</h3>
-      <p>ငွေသား၊ KBZPay၊ Wave၊ ဘဏ် စသည်ဖြင့် အကောင့်ဖွင့်ပြီး လက်ကျန်ကို မှတ်ပါ</p>
+      <p>ငွေသား၊ KBZPay၊ Wave၊ ဘဏ် စသည်ဖြင့် အကောင့်ဖွင့်ပါ။ ရောင်းရငွေ၊ ဝယ်ယူမှု၊ အသုံးစရိတ်တွေကို ဒီအကောင့်တွေနဲ့ ချိတ်နိုင်ပါတယ်</p>
       <div class="row"><button class="btn primary" id="acSeed">မူလအကောင့် ၄ ခု ဖန်တီးမည်</button>
       <button class="btn" id="acNew">+ အကောင့်အသစ်</button></div></div></div>`;
     return;
@@ -849,19 +871,24 @@ function render() {
 
 function renderTx() {
   const f = A.filter;
-  const list = A.txs.filter(t => f === 'all' || t.from === f || t.to === f)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt).slice(0, 100);
-  $('#acList').innerHTML = list.length ? list.map(t => {
+  const all = A.txs.filter(t => f === 'all' || t.from === f || t.to === f)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+  const list = all.slice(0, A.limit);
+  const rows = list.map(t => {
     let title, cls, sign;
-    if (t.type === 'xfer') { title = `လွှဲ · ${esc(nameOf(t.from))} → ${esc(nameOf(t.to))}`; }
+    if (t.auto) title = esc(t.title);
+    else if (t.type === 'xfer') title = `လွှဲ · ${esc(nameOf(t.from))} → ${esc(nameOf(t.to))}`;
     else if (t.type === 'in') title = `ထည့် · ${esc(nameOf(t.to))}`; else title = `ထုတ် · ${esc(nameOf(t.from))}`;
     if (t.type === 'xfer' && f !== 'all') { cls = t.to === f ? 'in' : 'out'; sign = t.to === f ? '+' : '−'; }
     else if (t.type === 'xfer') { cls = ''; sign = ''; }
     else { cls = t.type; sign = t.type === 'in' ? '+' : '−'; }
-    return `<div class="tx-row"><div><div class="t">${title}</div><div class="s">${dmy(t.date)}${t.note ? ' · ' + esc(t.note) : ''}</div></div>
+    const acct = t.auto && f === 'all' ? ` · ${esc(nameOf(t.to || t.from))}` : '';
+    return `<div class="tx-row"><div><div class="t">${title}</div><div class="s">${dmy(t.date)}${acct}${t.note ? ' · ' + esc(t.note) : ''}</div></div>
       <div style="display:flex;align-items:center;gap:4px"><span class="tx-amt ${cls}">${sign}${money(t.amount)}</span>
-      <button class="ibtn del" data-a="deltx" data-id="${t.id}" aria-label="ဖျက်ရန်">${svg('x', 18)}</button></div></div>`;
-  }).join('') : '<div class="tx-row"><span class="s">မှတ်တမ်း မရှိသေးပါ</span></div>';
+      ${t.auto ? '<span style="width:38px"></span>' : `<button class="ibtn del" data-a="deltx" data-id="${t.id}" aria-label="ဖျက်ရန်">${svg('x', 18)}</button>`}</div></div>`;
+  }).join('');
+  $('#acList').innerHTML = (rows || '<div class="tx-row"><span class="s">မှတ်တမ်း မရှိသေးပါ</span></div>')
+    + (all.length > list.length ? `<div class="tx-row" style="justify-content:center"><button class="btn small" id="acMore">ပိုကြည့်ရန် (${all.length - list.length})</button></div>` : '');
 }
 
 /* ---------- dialogs ---------- */
@@ -967,6 +994,7 @@ async function mount() {
   $('#content').addEventListener('change', e => { if (e.target.id === 'acFilter') { A.filter = e.target.value; renderTx(); } });
   $('#content').addEventListener('click', async e => {
     if (e.target.closest('#acSeed')) return seed();
+    if (e.target.closest('#acMore')) { A.limit += 100; return renderTx(); }
     if (e.target.closest('#acNew')) return openAcct();
     if (e.target.closest('#acTx')) return openTx('in');
     const b = e.target.closest('[data-a]'); if (!b) return;
@@ -975,7 +1003,7 @@ async function mount() {
     else if (act === 'in' || act === 'out' || act === 'xfer') openTx(act, id);
     else if (act === 'hist') { A.filter = id; $('#acFilter').value = id; renderTx(); $('#acHist').scrollIntoView({ behavior: 'smooth' }); }
     else if (act === 'del') {
-      if (A.txs.some(t => t.from === id || t.to === id)) return toast('မှတ်တမ်းရှိနေလို့ ဖျက်၍မရပါ');
+      if (A.txs.some(t => t.from === id || t.to === id)) return toast('ဒီအကောင့်မှာ မှတ်တမ်း (ရောင်း/ဝယ်/အသုံးစရိတ် အပါအဝင်) ရှိနေလို့ ဖျက်၍မရပါ');
       if (await ask(`"${nameOf(id)}" အကောင့်ကို ဖျက်မလား?`)) { await idb.del('meta', id); await refresh(); toast('ဖျက်ပြီးပါပြီ'); }
     } else if (act === 'deltx') {
       if (await ask('ဒီမှတ်တမ်းကို ဖျက်မလား? လက်ကျန်ငွေ ပြန်ပြောင်းသွားပါမယ်။')) { await idb.del('meta', id); await refresh(); toast('ဖျက်ပြီးပါပြီ'); }

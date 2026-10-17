@@ -393,6 +393,7 @@
   .dp-b b { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 </style>
+<script src="acct.js"></script>
 </head>
 <body data-page="debt/list" data-title="အကြွေး ပေးချေမှု">
 
@@ -804,6 +805,7 @@ function ensureDlg() {
           <input type="date" id="dp-date"><div class="msg"></div></div>
         <div class="field" id="w-damount"><label for="dp-amount">ပေးချေငွေ (ကျပ်)<span class="req">*</span></label>
           <input type="number" id="dp-amount" min="0" step="1" inputmode="numeric"><div class="msg"></div></div>
+        <div class="field full"><label for="dp-acct">ပေးချေသည့် ငွေအကောင့်</label><select id="dp-acct"></select></div>
         <div class="field full"><label for="dp-note">မှတ်ချက်</label>
           <input type="text" id="dp-note" autocomplete="off"></div>
       </div>
@@ -860,6 +862,7 @@ function openForm(poId) {
   if (poId && list.some(p => p.id === poId)) G('po').value = poId;
   G('date').value = today();
   G('note').value = '';
+  ACCT.fill(G('acct'));
   fillDefault();
   $('#dpdlg').showModal(); $('#dpdlg .db').scrollTop = 0; G('amount').focus(); G('amount').select();
 }
@@ -881,7 +884,7 @@ async function submitForm(e) {
   try {
     const next = {
       ...po, paid: po.paid + amount,
-      payments: [...paysOf(po), { id: uid('pay'), createdAt: Date.now(), date, amount, note: G('note').value.trim() }],
+      payments: [...paysOf(po), { id: uid('pay'), createdAt: Date.now(), date, amount, note: G('note').value.trim(), acctId: G('acct').value || null }],
     };
     await commit(next);
     replacePO(next);
