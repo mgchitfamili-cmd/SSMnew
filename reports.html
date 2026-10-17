@@ -422,6 +422,7 @@
   }
 
 </style>
+<script src="acct.js"></script>
 </head>
 <body data-page="r-sales/view" data-title="ရောင်းချမှု အစီရင်ခံစာ">
 
@@ -503,6 +504,7 @@ const MENU = [
     { id: 'r-purchase', label: 'ဝယ်ယူမှု အစီရင်ခံစာ',     icon: 'file', sub: VIEW_SUB },
     { id: 'r-sales',    label: 'ရောင်းချမှု အစီရင်ခံစာ',   icon: 'file', sub: VIEW_SUB },
     { id: 'r-cash',     label: 'အဝင်အထွက် အစီရင်ခံစာ',   icon: 'fileX', sub: VIEW_SUB },
+    { id: 'r-account',  label: 'ငွေအကောင့် အစီရင်ခံစာ',   icon: 'wallet' },
     { id: 'r-adjust',   label: 'စာရင်းညှိ အစီရင်ခံစာ',    icon: 'fileIn', sub: VIEW_SUB },
     { id: 'r-loan',     label: 'လည်ချာ အစီရင်ခံစာ',       icon: 'list', sub: VIEW_SUB, off: true },
     { id: 'r-summary',  label: 'အနှစ်ချုပ်',              icon: 'list', sub: VIEW_SUB, off: true },
@@ -574,7 +576,7 @@ const ROUTES = {
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
   'customers': 'customers.html', 'suppliers': 'suppliers.html', 'accounts': 'accounts.html',
-  'r-purchase/view': 'reports.html?p=r-purchase%2Fview', 'r-sales/view': 'reports.html?p=r-sales%2Fview', 'r-cash/view': 'reports.html?p=r-cash%2Fview', 'r-adjust/view': 'reports.html?p=r-adjust%2Fview', 'r-stock': 'reports.html?p=r-stock', 'r-profit': 'reports.html?p=r-profit', 'r-expense': 'reports.html?p=r-expense',
+  'r-purchase/view': 'reports.html?p=r-purchase%2Fview', 'r-sales/view': 'reports.html?p=r-sales%2Fview', 'r-cash/view': 'reports.html?p=r-cash%2Fview', 'r-adjust/view': 'reports.html?p=r-adjust%2Fview', 'r-stock': 'reports.html?p=r-stock', 'r-profit': 'reports.html?p=r-profit', 'r-expense': 'reports.html?p=r-expense', 'r-account': 'reports.html?p=r-account',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -806,7 +808,7 @@ const signedMoney = d => (d < 0 ? '− ' : '') + money(Math.abs(d));
 const cls = d => (d > 0 ? 'pos' : d < 0 ? 'neg' : '');
 
 const R = { range: 'month', from: '', to: '' };
-const D = { sales: [], expenses: [], adjustments: [], failed: false };
+const D = { sales: [], expenses: [], adjustments: [], meta: [], failed: false };
 const STK = { q: '', cat: '', st: '' };
 
 function setRange(r) {
@@ -825,6 +827,7 @@ async function load() {
   D.sales = await idb.all('sales');
   D.expenses = await idb.all('expenses');
   D.adjustments = await idb.all('adjustments');
+  D.meta = await idb.all('meta');
 }
 const loaded = load().catch(err => { D.failed = true; console.error(err); });
 
@@ -1079,6 +1082,37 @@ function mountStock() {
   drawStock();
 }
 
+/* ---------- ငွေအကောင့် report: opening / in / out / closing per account for the chosen period ---------- */
+function repAccount() {
+  const { accts, entries } = ACCT.build(D.meta, D.sales, S.purchases, D.expenses);
+  if (!accts.length) return `<div class="empty"><h3>ငွေအကောင့် မရှိသေးပါ</h3><p>ငွေအကောင့် စာမျက်နှာမှာ အကောင့်အရင် ဖန်တီးပါ။</p></div>`;
+  const nm = id => (accts.find(a => a.id === id) || {}).name || '(ဖျက်ပြီး)';
+  const delta = (e, id) => (e.to === id ? e.amount : 0) - (e.from === id ? e.amount : 0);
+  const rows = accts.map(a => {
+    const mine = entries.filter(e => e.from === a.id || e.to === a.id);
+    const open = (Number(a.opening) || 0) + sum(mine.filter(e => R.from && e.date < R.from), e => delta(e, a.id));
+    const inn = mine.filter(e => inR(e.date));
+    const i = sum(inn, e => (e.to === a.id ? e.amount : 0)), o = sum(inn, e => (e.from === a.id ? e.amount : 0));
+    return { a, open, i, o, close: open + i - o };
+  });
+  const inR_ = entries.filter(e => inR(e.date));
+  const ext = t => inR_.filter(e => e.type === t), kindRows = list => groupSum(list, e => ACCT.KIND[e.kind] || e.kind, e => e.amount);
+  const tin = sum(ext('in'), e => e.amount), tout = sum(ext('out'), e => e.amount);
+  const xf = inR_.filter(e => e.type === 'xfer');
+  const totalOpen = sum(rows, r => r.open), totalClose = sum(rows, r => r.close);
+  return statGrid([stat('စတင် လက်ကျန်', money(totalOpen)), stat('ငွေဝင်', money(tin), 'pos'), stat('ငွေထွက်', money(tout), tout ? 'neg' : ''), stat('ကုန်ဆုံး လက်ကျန်', money(totalClose))])
+  + section('အကောင့်အလိုက်', listRows(rows.map(r => vr(esc(r.a.name),
+      `စတင် ${money(r.open)} · ဝင် ${money(r.i)} · ထွက် ${money(r.o)}`, money(r.close), r.close < 0 ? 'neg' : '', esc(r.a.type)))))
+  + (tin ? section('ငွေဝင် အမျိုးအစားအလိုက်', bars(kindRows(ext('in')), tin)) : '')
+  + (tout ? section('ငွေထွက် အမျိုးအစားအလိုက်', bars(kindRows(ext('out')), tout)) : '')
+  + (xf.length ? `<div class="hint" style="margin-top:10px">အကောင့်ချင်း ငွေလွှဲ ${xf.length} ကြိမ် (စုစုပေါင်း ${money(sum(xf, e => e.amount))}) — အထက်စုစုပေါင်းမှာ မပါပါ၊ အကောင့်အလိုက်မှာ ပါပါတယ်</div>` : '')
+  + section('မှတ်တမ်းများ', listRows(inR_.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt).slice(0, 100).map(e => {
+      const title = e.auto ? esc(e.title) : e.type === 'xfer' ? `ငွေလွှဲ · ${esc(nm(e.from))} → ${esc(nm(e.to))}` : `${ACCT.KIND[e.kind]} · ${esc(nm(e.to || e.from))}`;
+      const acct = e.auto ? ` · ${esc(nm(e.to || e.from))}` : '';
+      return vr(title, `${dmy(e.date)}${acct}${e.note ? ' · ' + esc(e.note) : ''}`, (e.type === 'in' ? '+' : e.type === 'out' ? '− ' : '') + money(e.amount), e.type === 'in' ? 'pos' : e.type === 'out' ? 'neg' : '');
+    })));
+}
+
 /* ---------- range-based report shell ---------- */
 const REPS = {
   'r-sales/view':    { title: 'ရောင်းချမှု အစီရင်ခံစာ',  fn: repSales },
@@ -1087,6 +1121,7 @@ const REPS = {
   'r-adjust/view':   { title: 'စာရင်းညှိ အစီရင်ခံစာ',    fn: repAdjust },
   'r-profit':        { title: 'ရောင်းချမှု အမြတ်',       fn: repProfit },
   'r-expense':       { title: 'အသုံးစရိတ် အစီရင်ခံစာ',   fn: repExpense },
+  'r-account':       { title: 'ငွေအကောင့် အစီရင်ခံစာ',   fn: repAccount },
   'r-stock':         { title: 'ပစ္စည်းစာရင်း အစီရင်ခံစာ', stock: true },
 };
 const CHIPS = [['today', 'ယနေ့'], ['week', 'ရက် ၇ ရက်'], ['month', 'ယခုလ'], ['all', 'အားလုံး'], ['custom', 'ရက်ရွေးမည်']];

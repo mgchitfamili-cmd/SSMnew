@@ -458,6 +458,7 @@ const MENU = [
     { id: 'r-purchase', label: 'ဝယ်ယူမှု အစီရင်ခံစာ',     icon: 'file', sub: VIEW_SUB },
     { id: 'r-sales',    label: 'ရောင်းချမှု အစီရင်ခံစာ',   icon: 'file', sub: VIEW_SUB },
     { id: 'r-cash',     label: 'အဝင်အထွက် အစီရင်ခံစာ',   icon: 'fileX', sub: VIEW_SUB },
+    { id: 'r-account',  label: 'ငွေအကောင့် အစီရင်ခံစာ',   icon: 'wallet' },
     { id: 'r-adjust',   label: 'စာရင်းညှိ အစီရင်ခံစာ',    icon: 'fileIn', sub: VIEW_SUB },
     { id: 'r-loan',     label: 'လည်ချာ အစီရင်ခံစာ',       icon: 'list', sub: VIEW_SUB, off: true },
     { id: 'r-summary',  label: 'အနှစ်ချုပ်',              icon: 'list', sub: VIEW_SUB, off: true },
@@ -529,7 +530,7 @@ const ROUTES = {
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
   'customers': 'customers.html', 'suppliers': 'suppliers.html', 'accounts': 'accounts.html',
-  'r-purchase/view': 'reports.html?p=r-purchase%2Fview', 'r-sales/view': 'reports.html?p=r-sales%2Fview', 'r-cash/view': 'reports.html?p=r-cash%2Fview', 'r-adjust/view': 'reports.html?p=r-adjust%2Fview', 'r-stock': 'reports.html?p=r-stock', 'r-profit': 'reports.html?p=r-profit', 'r-expense': 'reports.html?p=r-expense',
+  'r-purchase/view': 'reports.html?p=r-purchase%2Fview', 'r-sales/view': 'reports.html?p=r-sales%2Fview', 'r-cash/view': 'reports.html?p=r-cash%2Fview', 'r-adjust/view': 'reports.html?p=r-adjust%2Fview', 'r-stock': 'reports.html?p=r-stock', 'r-profit': 'reports.html?p=r-profit', 'r-expense': 'reports.html?p=r-expense', 'r-account': 'reports.html?p=r-account',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
