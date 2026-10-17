@@ -574,6 +574,7 @@ const ROUTES = {
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
+  'customers': 'customers.html', 'suppliers': 'suppliers.html',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -883,7 +884,7 @@ function filtered() {
       const d = ymd(s.createdAt);
       if (U.from && d < U.from) return false;
       if (U.to && d > U.to) return false;
-      return !q || [s.no, ...s.items.map(i => i.name)].some(v => norm(v).includes(q));
+      return !q || [s.no, s.customerName, ...s.items.map(i => i.name)].some(v => norm(v).includes(q));
     })
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -897,7 +898,7 @@ const rowBtns = s => btns().map(([a, i, l, c]) =>
 const cardHtml = s => `
 <article class="pcard">
   <div><h3 class="pname">${esc(s.no)}</h3>
-    <div class="psub">${dmy(s.createdAt)} · ${hm(s.createdAt)}</div></div>
+    <div class="psub">${dmy(s.createdAt)} · ${hm(s.createdAt)}${s.customerName ? ' · ' + esc(s.customerName) : ''}</div></div>
   <dl class="kv">
     <div><dt>ကုန်ပစ္စည်း</dt><dd>${s.items.length} မျိုး</dd></div>
     <div><dt>စုစုပေါင်း</dt><dd>${money(s.total)}</dd></div>
@@ -973,7 +974,7 @@ function openView(sale) {
   const prof = profitOf(sale);
   $('#slvBody').innerHTML = `
     <div class="detail-top"><div><h3 class="pname">${esc(sale.no)}</h3>
-      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div></div></div>
+      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}</div></div>
     <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
     ${sale.items.map(it => `<div class="vrow"><div><div class="pname" style="font-size:16px">${esc(it.name)}</div>
       <div class="psub">${qty(it.qty)} ${esc(it.unit || '')} × ${money(it.price)}</div></div>

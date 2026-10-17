@@ -567,6 +567,7 @@ const ROUTES = {
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
+  'customers': 'customers.html', 'suppliers': 'suppliers.html',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -786,6 +787,15 @@ window.POS = { idb, S, ready, storeError: () => storeError, ensureShared,
 (() => {
 const { idb, S, ready, $, esc, money, qty, uid, norm, toast, ask, thumb, titleOf, find, parsePrice, unitName } = window.POS;
 const R = id => document.getElementById('rt-' + id);
+let custs = [];
+async function loadCusts() {
+  try {
+    custs = await idb.all('customers');
+    const el = R('custs'); if (!el) return;
+    el.innerHTML = custs.slice().sort((a, b) => a.name.localeCompare(b.name, 'my')).map(c => `<option value="${esc(c.name)}">`).join('');
+  } catch (err) { console.error(err); }
+}
+const custOf = nm => custs.find(c => norm(c.name) === norm(nm));
 
 let cart = [], paidTouched = false, viewId = null;
 const U = { q: '', hq: '' };
@@ -884,6 +894,8 @@ function mount() {
       <div id="rt-items"></div>
 
       <div class="fg" style="margin-top:14px">
+        <div class="field full" id="w-rcust"><label for="rt-cust">ဖောက်သည်</label>
+          <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
         <div class="field" id="w-rdisc"><label for="rt-disc">လျှော့စျေး (ကျပ်)</label>
           <input type="number" id="rt-disc" min="0" step="1" inputmode="numeric" placeholder="0"><div class="msg"></div></div>
         <div class="field" id="w-rpaid"><label for="rt-paid">ရရှိငွေ (ကျပ်)</label>
@@ -940,11 +952,11 @@ function mount() {
   R('hist').addEventListener('click', openHist);
   R('bargo').addEventListener('click', () => R('cartbox').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
-  renderProducts(); renderCart();
+  renderProducts(); renderCart(); loadCusts();
 }
 
 function resetCart() {
-  cart = []; paidTouched = false; R('disc').value = '';
+  cart = []; paidTouched = false; R('disc').value = ''; R('cust').value = ''; loadCusts();
   ['rcart', 'rdisc', 'rpaid'].forEach(k => setErr(k, ''));
   renderCart();
 }
@@ -1091,6 +1103,7 @@ async function checkout() {
   const seqBefore = S.saleSeq;
   try {
     const now = Date.now();
+    const custName = R('cust').value.trim(), cu = custName ? custOf(custName) : null;
     const sale = {
       id: uid('s'), createdAt: now, no: nextNo(),
       items: cart.map(it => {
@@ -1099,6 +1112,7 @@ async function checkout() {
                  qty: Number(it.qty), price: Math.round(Number(it.price)), cost: p.costPrice || 0 };
       }),
       subtotal, discount: disc || 0, total, paid, change: paid - total,
+      customerId: cu ? cu.id : null, customerName: cu ? cu.name : custName,
     };
     const changed = sale.items.map(it => {
       const p = find(it.productId);
@@ -1132,7 +1146,7 @@ function openView(sale, justSold) {
   $('#rt-void').hidden = !!justSold;
   $('#rt-vbody').innerHTML = `
     <div class="detail-top"><div><h3 class="pname">${esc(sale.no)}</h3>
-      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div></div></div>
+      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}</div></div>
     ${justSold ? `<div class="tot" style="margin-top:0"><div><span>ပြန်အမ်းငွေ</span><span class="rt-chg">${money(sale.change)}</span></div></div>` : ''}
     <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
     ${sale.items.map(it => `<div class="vrow"><div><div class="pname" style="font-size:16px">${esc(it.name)}</div>

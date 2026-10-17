@@ -525,6 +525,7 @@ const ROUTES = {
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
+  'customers': 'customers.html', 'suppliers': 'suppliers.html',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -760,6 +761,8 @@ const n = x => { const v = Number(x); return Number.isFinite(v) && v >= 0 ? v : 
 const lineOf = it => Math.round(n(it.qty) * n(it.cost));
 const round3 = x => Math.round(x * 1000) / 1000;
 const dueOf = p => Math.max(0, p.total - p.paid);
+let supList = [];
+const supIdOf = nm => { const s = supList.find(x => norm(x.name) === norm(nm)); return s ? s.id : null; };
 
 function nextNo() {
   let no;
@@ -950,8 +953,11 @@ function openForm() {
   ['pdate', 'pitems', 'ppaid'].forEach(k => setErr(k, ''));
   G('date').value = today();
   G('updcost').checked = true;
-  G('suppliers').innerHTML = [...new Set(S.purchases.map(p => p.supplier).filter(Boolean))]
-    .map(v => `<option value="${esc(v)}">`).join('');
+  const fillSup = () => {
+    G('suppliers').innerHTML = [...new Set([...supList.map(s => s.name), ...S.purchases.map(p => p.supplier)].filter(Boolean))]
+      .map(v => `<option value="${esc(v)}">`).join('');
+  };
+  fillSup(); idb.all('suppliers').then(l => { supList = l; fillSup(); }).catch(err => console.error(err));
   G('res').hidden = true;
   renderItems();
   $('#pudlg').showModal(); $('#pudlg .db').scrollTop = 0; G('find').focus();
@@ -982,7 +988,7 @@ async function submitForm(e) {
     const now = Date.now(), upd = G('updcost').checked;
     const po = {
       id: uid('po'), createdAt: now, no: nextNo(), date,
-      supplier: G('supplier').value.trim(), ref: G('ref').value.trim(), note: G('note').value.trim(),
+      supplier: G('supplier').value.trim(), supplierId: supIdOf(G('supplier').value.trim()), ref: G('ref').value.trim(), note: G('note').value.trim(),
       items: draft.items.map(it => {
         const p = find(it.productId);
         return { productId: it.productId, name: titleOf(p), unit: unitName(p.unitId), qty: Number(it.qty), cost: Math.round(Number(it.cost)) };
