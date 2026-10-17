@@ -750,6 +750,8 @@ const CFG = {"kind": "customer", "store": "customers", "prefix": "cu", "title": 
 const { idb, S, ready, $, esc, money, uid, norm, toast, ask } = window.POS;
 const G = id => document.getElementById('pt-' + id);
 const isCust = CFG.kind === 'customer';
+const DUE = isCust ? 'ကောက်ရန်ကျန်' : 'ပေးရန်ကျန်';
+const dueOfS = r => Math.max(0, r.total + (Number(r.deliveryCharge) || 0) - (r.paid || 0));
 const REL = isCust ? 'sales' : 'purchases';          // store that points back to the party
 
 const P = { items: [], sales: [], failed: false };
@@ -777,7 +779,7 @@ function isLinked(r, pt) {
 }
 function txns(pt) {
   return relAll().filter(r => isLinked(r, pt)).map(r => isCust
-    ? { no: r.no, when: dmyTs(r.createdAt), ts: r.createdAt, total: r.total, due: 0 }
+    ? { id: r.id, no: r.no, when: dmyTs(r.createdAt), ts: r.createdAt, total: r.total + (Number(r.deliveryCharge) || 0), due: r.credit ? dueOfS(r) : 0 }
     : { no: r.no, when: dmy(r.date), ts: r.createdAt, total: r.total, due: Math.max(0, r.total - r.paid) })
     .sort((a, b) => b.ts - a.ts);
 }
@@ -918,9 +920,10 @@ function filtered() {
 }
 
 const btns = [['view', 'eye', 'ကြည့်ရန်', ''], ['edit', 'edit', 'ပြင်ရန်', ''], ['del', 'trash', 'ဖျက်ရန်', 'del']];
-const cardBtns = x => btns.map(([k, i, l, c]) =>
+const btnsFor = x => (isCust && statsOf(x).due > 0) ? [['collect', 'card', 'ငွေလက်ခံ', ''], ...btns] : btns;
+const cardBtns = x => btnsFor(x).map(([k, i, l, c]) =>
   `<button class="abtn ${c}" data-act="${k}" data-id="${x.id}">${svg(i, 20)}<span>${l}</span></button>`).join('');
-const rowBtns = x => btns.map(([k, i, l, c]) =>
+const rowBtns = x => btnsFor(x).map(([k, i, l, c]) =>
   `<button class="ibtn ${c}" data-act="${k}" data-id="${x.id}" title="${l}" aria-label="${l}">${svg(i, 20)}</button>`).join('');
 const dueHtml = s => s.due > 0 ? `<span class="due">${money(s.due)}</span>` : '-';
 
@@ -931,9 +934,9 @@ const cardHtml = x => { const s = statsOf(x); return `
   <dl class="kv">
     <div><dt>${CFG.countLabel}</dt><dd>${s.n} ကြိမ်</dd></div>
     <div><dt>${CFG.totalLabel}</dt><dd>${money(s.total)}</dd></div>
-    ${isCust ? '' : `<div><dt>ပေးရန်ကျန်</dt><dd>${dueHtml(s)}</dd></div>`}
+    <div><dt>${DUE}</dt><dd>${dueHtml(s)}</dd></div>
   </dl>
-  <div class="acts" style="grid-template-columns:repeat(3,1fr)">${cardBtns(x)}</div>
+  <div class="acts" style="grid-template-columns:repeat(${btnsFor(x).length},1fr)">${cardBtns(x)}</div>
 </article>`; };
 
 const rowHtml = x => { const s = statsOf(x); return `
@@ -942,7 +945,7 @@ const rowHtml = x => { const s = statsOf(x); return `
   <td>${esc(x.phone || '-')}</td>
   <td class="num">${s.n}</td>
   <td class="num"><b>${money(s.total)}</b></td>
-  ${isCust ? '' : `<td class="num">${dueHtml(s)}</td>`}
+  <td class="num">${dueHtml(s)}</td>
   <td class="ac"><div class="tact">${rowBtns(x)}</div></td>
 </tr>`; };
 
@@ -956,7 +959,8 @@ function renderList() {
       <div class="row"><button class="btn primary" data-act="add">+ ${CFG.title}အသစ်</button></div></div>`;
     return;
   }
-  cnt.textContent = `${CFG.title} ${rows.length} ဦး`;
+  const allDue = isCust ? P.items.reduce((a, x) => a + statsOf(x).due, 0) : 0;
+  cnt.textContent = `${CFG.title} ${rows.length} ဦး` + (allDue > 0 ? ` · ${DUE} စုစုပေါင်း ${money(allDue)}` : '');
   if (!rows.length) {
     list.innerHTML = `<div class="empty"><h3>မတွေ့ပါ</h3><p>ရှာဖွေမှုနှင့် ကိုက်ညီသော ${CFG.title} မရှိပါ။</p></div>`;
     return;
@@ -964,8 +968,72 @@ function renderList() {
   list.innerHTML = `
   <div class="cards">${rows.map(cardHtml).join('')}</div>
   <div class="tbl-wrap"><table class="tbl">
-    <thead><tr><th>အမည်</th><th>ဖုန်း</th><th class="num">${CFG.countLabel}</th><th class="num">${CFG.totalLabel}</th>${isCust ? '' : '<th class="num">ပေးရန်ကျန်</th>'}<th></th></tr></thead>
+    <thead><tr><th>အမည်</th><th>ဖုန်း</th><th class="num">${CFG.countLabel}</th><th class="num">${CFG.totalLabel}</th><th class="num">${DUE}</th><th></th></tr></thead>
     <tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`;
+}
+
+/* ---------- Collect credit (customers only) ---------- */
+let colId = null;
+const ymdNow = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+function ensureCollect() {
+  if ($('#coldlg')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+<dialog class="dlg" id="coldlg" aria-labelledby="colTitle">
+  <div class="dh"><h2 id="colTitle">အကြွေး ငွေလက်ခံခြင်း</h2>
+    <button type="button" class="icon-btn" data-close aria-label="ပိတ်ရန်">${svg('x')}</button></div>
+  <div class="db">
+    <div id="colInfo" style="margin-top:12px"></div>
+    <div class="fg" style="margin-top:12px">
+      <div class="field" id="w-colamt"><label for="col-amt">လက်ခံငွေ (ကျပ်)</label>
+        <input type="number" id="col-amt" min="1" step="1" inputmode="numeric"><div class="msg"></div></div>
+      <div class="field"><label for="col-date">ရက်စွဲ</label><input type="date" id="col-date"></div>
+      <div class="field full"><label for="col-note">မှတ်ချက်</label><input type="text" id="col-note" autocomplete="off"></div>
+    </div>
+    <div class="hint" id="colAfter" style="margin-top:8px"></div>
+  </div>
+  <div class="df">
+    <button type="button" class="btn" data-close>မလုပ်တော့ပါ</button>
+    <button type="button" class="btn primary" id="colOk">လက်ခံပြီး မှတ်မည်</button>
+  </div>
+</dialog>`);
+  $('#coldlg').addEventListener('click', e => { if (e.target.id === 'coldlg') e.target.close(); });
+  $('#col-amt').addEventListener('input', updCol);
+  $('#colOk').addEventListener('click', confirmCollect);
+}
+const dueSales = pt => P.sales.filter(r => r.customerId === pt.id && r.credit && dueOfS(r) > 0).sort((a, b) => a.createdAt - b.createdAt);
+function updCol() {
+  const pt = P.items.find(v => v.id === colId); if (!pt) return;
+  const due = statsOf(pt).due, v = window.POS.parsePrice($('#col-amt').value);
+  $('#colAfter').textContent = v !== null && v > 0 ? `လက်ခံပြီးနောက် ကျန်ငွေ ${money(Math.max(0, due - v))}` : '';
+}
+function openCollect(pt) {
+  ensureCollect(); colId = pt.id;
+  const due = statsOf(pt).due, n = dueSales(pt).length;
+  $('#colInfo').innerHTML = `<div class="pname" style="font-size:16px">${esc(pt.name)}</div>
+    <div class="tot"><div><span>အကြွေးရှိသော ရောင်းချမှု</span><span>${n} ခု</span></div>
+    <div class="grand"><span>${DUE}</span><span class="due">${money(due)}</span></div></div>
+    <div class="psub" style="margin-top:6px">လက်ခံငွေကို အဟောင်းဆုံး ရောင်းချမှုမှ စ၍ နှုတ်မည်။</div>`;
+  $('#col-amt').value = due; $('#col-date').value = ymdNow(); $('#col-note').value = '';
+  const w = $('#w-colamt'); w.classList.remove('err'); w.querySelector('.msg').textContent = '';
+  updCol(); $('#coldlg').showModal();
+}
+async function confirmCollect() {
+  const pt = P.items.find(v => v.id === colId); if (!pt) return;
+  const due = statsOf(pt).due, v = window.POS.parsePrice($('#col-amt').value), w = $('#w-colamt');
+  const err = m => { w.classList.add('err'); w.querySelector('.msg').textContent = m; };
+  if (v === null || v <= 0) return err('လက်ခံငွေ ထည့်ပါ');
+  if (v > due) return err(`ကျန်ငွေ ${money(due)} ထက် မများရပါ`);
+  const date = $('#col-date').value || ymdNow(), note = $('#col-note').value.trim();
+  let left = v; const changed = [];
+  for (const r of dueSales(pt)) {
+    if (left <= 0) break;
+    const take = Math.min(left, dueOfS(r)); left -= take;
+    changed.push({ ...r, paid: (r.paid || 0) + take,
+      payments: [...(r.payments || []), { id: window.POS.uid('pay'), createdAt: Date.now(), date, amount: take, note }] });
+  }
+  try { await commit({ linked: changed }); } catch (e) { console.error(e); return toast('သိမ်း၍ မရပါ'); }
+  syncRel(changed); $('#coldlg').close(); renderList();
+  toast(statsOf(pt).due > 0 ? 'ငွေလက်ခံမှု မှတ်ပြီးပါပြီ' : 'ငွေလက်ခံမှု မှတ်ပြီး — အကြွေး ရှင်းပြီးပါပြီ');
 }
 
 /* ---------- Actions ---------- */
@@ -979,19 +1047,22 @@ function showView(x) {
   <div class="tot">
     <div><span>${CFG.countLabel}</span><span>${s.n} ကြိမ်</span></div>
     <div class="grand"><span>${CFG.totalLabel}</span><span>${money(s.total)}</span></div>
-    ${isCust ? '' : `<div><span>ပေးရန်ကျန်</span><span class="${s.due > 0 ? 'due' : ''}">${money(s.due)}</span></div>`}
+    <div><span>${DUE}</span><span class="${s.due > 0 ? 'due' : ''}">${money(s.due)}</span></div>
   </div>
+  ${isCust && s.due > 0 ? '<button type="button" class="btn primary" id="ptCollect" style="width:100%;margin-top:12px">ငွေလက်ခံ</button>' : ''}
   <div class="sec">မကြာသေးမီ ${CFG.txnLabel}</div>
   ${s.list.length ? s.list.slice(0, 10).map(t => `
   <div class="vrow"><div><div class="pname" style="font-size:15px">${esc(t.no)}</div><div class="psub">${t.when}</div></div>
     <div style="text-align:right"><b>${money(t.total)}</b>${t.due > 0 ? `<div class="due" style="font-size:13px">ကျန် ${money(t.due)}</div>` : ''}</div></div>`).join('')
     : `<div class="hint">${CFG.txnLabel} မရှိသေးပါ</div>`}`;
+  const cb = $('#ptCollect'); if (cb) cb.addEventListener('click', () => { $('#ptview').close(); openCollect(x); });
   $('#ptview').showModal(); $('#ptvBody').scrollTop = 0;
 }
 
 async function act(k, id) {
   if (k === 'add') return openForm();
   const x = P.items.find(v => v.id === id); if (!x) return;
+  if (k === 'collect') return openCollect(x);
   if (k === 'view') return showView(x);
   if (k === 'edit') return openForm(x);
   if (k === 'del') {

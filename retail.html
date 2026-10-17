@@ -982,6 +982,7 @@ function mount() {
   ['dco', 'dph', 'dad'].forEach(k => R(k).addEventListener('input', () => setErr('rdel', '')));
   R('disc').addEventListener('input', () => { setErr('rdisc', ''); updateTotals(); });
   R('paid').addEventListener('input', () => { paidTouched = true; setErr('rpaid', ''); updateTotals(); });
+  R('cust').addEventListener('input', () => { setErr('rpaid', ''); updateTotals(); });
   R('clear').addEventListener('click', async () => {
     if (!cart.length) return;
     if (!await ask('ဈေးခြင်းထဲက ကုန်ပစ္စည်းအားလုံးကို ရှင်းမလား?', 'ရှင်းမည်')) return;
@@ -1115,7 +1116,12 @@ function updateTotals() {
   R('bartotal').textContent = money(total);
   const h = R('hint'); h.className = 'hint'; h.style.marginTop = '8px'; h.textContent = '';
   if (cod && cart.length) { h.textContent = `ပို့ပြီးမှ ${money(total)} ကောက်ရမည်`; }
-  else if (cart.length && paid < total) { h.classList.add('warn'); h.textContent = `ရရှိငွေ ${money(total - paid)} လိုနေသည်`; }
+  else if (cart.length && paid < total) {
+    h.classList.add('warn');
+    h.textContent = custOf(R('cust').value.trim())
+      ? `အကြွေး ${money(total - paid)} ကျန်မည် (ဖောက်သည်အကြွေးအဖြစ် မှတ်မည်)`
+      : `ရရှိငွေ ${money(total - paid)} လိုနေသည် — အကြွေးရောင်းလိုလျှင် ဖောက်သည် ရွေးပါ`;
+  }
 }
 
 /* ---------- Checkout ---------- */
@@ -1147,7 +1153,7 @@ async function checkout() {
   const paid = cod ? 0 : parsePrice(R('paid').value);
   if (!cod) {
     if (paid === null) errs.rpaid = 'ရရှိငွေ ထည့်ပါ';
-    else if (paid < total) errs.rpaid = 'ရရှိငွေ မလုံလောက်ပါ';
+    else if (paid < total && !custOf(R('cust').value.trim())) errs.rpaid = 'ရရှိငွေ မလုံလောက်ပါ — အကြွေးရောင်းလိုလျှင် စာရင်းသွင်းထားသော ဖောက်သည် ရွေးပါ';
   }
   ['rcart', 'rdisc', 'rpaid', 'rdel'].forEach(k => setErr(k, errs[k]));
   const first = Object.keys(errs)[0];
@@ -1172,9 +1178,10 @@ async function checkout() {
       }),
       subtotal, discount: disc || 0, total: goods,
       deliveryCharge: del ? (dch || 0) : 0,
-      paid, change: cod ? 0 : paid - total,
+      paid, change: cod ? 0 : Math.max(0, paid - total),
       customerId: cu ? cu.id : null, customerName: cu ? cu.name : custName,
     };
+    if (!cod && paid < total) sale.credit = true;      // part/unpaid: balance is collected later from the customer
     if (del) {
       sale.delivery = {
         mode, courier: R('dco').value.trim(), address: R('dad').value.trim(), phone: R('dph').value.trim(),
@@ -1225,7 +1232,8 @@ function openView(sale, justSold) {
       ${sale.discount > 0 ? `<div><span>လျှော့စျေး</span><span>- ${money(sale.discount)}</span></div>` : ''}` : ''}
       ${sale.deliveryCharge > 0 ? `<div><span>Delivery charge</span><span>${money(sale.deliveryCharge)}</span></div>` : ''}
       <div class="grand"><span>စုစုပေါင်း</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>
-      ${sale.delivery && sale.delivery.cod ? `<div><span>ကောက်ရန်ကျန်</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>` : `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
+      ${sale.credit ? `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
+      <div><span>အကြွေးကျန်</span><span class="due">${money(Math.max(0, sale.total + (sale.deliveryCharge || 0) - sale.paid))}</span></div>` : sale.delivery && sale.delivery.cod ? `<div><span>ကောက်ရန်ကျန်</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>` : `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
       <div><span>ပြန်အမ်းငွေ</span><span>${money(sale.change)}</span></div>`}
     </div>`;
   $('#rtview').showModal();
@@ -1474,6 +1482,7 @@ window.showPage = async function () {
     if (dc > 0) row('Delivery charge', num(dc));
     row('စုစုပေါင်း', num(sale.total + dc) + ' ကျပ်', 28, true);
     if (dv && dv.cod) row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc), 24, true);
+    else if (sale.credit) { row('ရရှိငွေ', num(sale.paid)); row('အကြွေးကျန်', num(Math.max(0, sale.total + dc - sale.paid)), 24, true); }
     else { row('ရရှိငွေ', num(sale.paid)); row('ပြန်အမ်းငွေ', num(sale.change)); }
     if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }
     return y + 28;

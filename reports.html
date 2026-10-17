@@ -909,7 +909,12 @@ function cashDays() {
     const o = days.get(d) || { sale: 0, buy: 0, debt: 0, exp: 0 }; o[k] += v; days.set(d, o);
   };
   D.sales.forEach(s => {
-    if (!s.delivery) add(ymd(s.createdAt), 'sale', s.total);
+    const pays = s.payments || [];
+    if (s.credit) {                                                                          // credit sale: only what was paid counts
+      add(ymd(s.createdAt), 'sale', Math.max(0, (s.paid || 0) - sum(pays, x => x.amount)));
+      pays.forEach(x => add(x.date, 'sale', x.amount));
+    }
+    else if (!s.delivery) add(ymd(s.createdAt), 'sale', s.total);
     else if (!s.delivery.cod) add(ymd(s.createdAt), 'sale', s.total + ownDelInc(s));       // paid up-front
     else if (s.delivery.status === 'settled') add(ymd(s.delivery.settledAt || s.createdAt), 'sale', s.delivery.received || 0);   // COD: cash arrives on settlement
   });

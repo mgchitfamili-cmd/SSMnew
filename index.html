@@ -1079,6 +1079,7 @@ render();
     if (dc > 0) row('Delivery charge', num(dc));
     row('စုစုပေါင်း', num(sale.total + dc) + ' ကျပ်', 28, true);
     if (dv && dv.cod) row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc), 24, true);
+    else if (sale.credit) { row('ရရှိငွေ', num(sale.paid)); row('အကြွေးကျန်', num(Math.max(0, sale.total + dc - sale.paid)), 24, true); }
     else { row('ရရှိငွေ', num(sale.paid)); row('ပြန်အမ်းငွေ', num(sale.change)); }
     if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }
     return y + 28;

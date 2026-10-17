@@ -807,6 +807,8 @@ const ymd = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.g
 const round3 = x => Math.round(x * 1000) / 1000;
 const profitOf = s => s.total - s.items.reduce((a, it) => a + Math.round(it.qty * (it.cost || 0)), 0);
 const DST = { pending: 'ပို့ရန်ကျန်', delivered: 'ပို့ပြီး', settled: 'ငွေလက်ခံပြီး' };
+const dueOfSale = s => s.credit ? Math.max(0, s.total + (Number(s.deliveryCharge) || 0) - (s.paid || 0)) : 0;
+const cTag = s => s.credit ? `<span class="psub"> · ${dueOfSale(s) > 0 ? 'အကြွေးကျန် ' + money(dueOfSale(s)) : 'အကြွေးရှင်းပြီး'}</span>` : '';
 const dTag = s => s.delivery ? `<span class="psub"> · ${s.delivery.mode === 'company' ? 'ကုမ္ပဏီ' : 'ကိုယ်ပိုင်'} delivery · ${DST[s.delivery.status] || ''}${s.delivery.cod ? ' · COD' : ''}</span>` : '';
 const profHtml = v => `<span class="${v < 0 ? 'due' : 'sl-profit'}">${money(v)}</span>`;
 
@@ -904,7 +906,7 @@ const rowBtns = s => btns().map(([a, i, l, c]) =>
 const cardHtml = s => `
 <article class="pcard">
   <div><h3 class="pname">${esc(s.no)}</h3>
-    <div class="psub">${dmy(s.createdAt)} · ${hm(s.createdAt)}${s.customerName ? ' · ' + esc(s.customerName) : ''}</div>${s.delivery ? `<div>${dTag(s)}</div>` : ''}</div>
+    <div class="psub">${dmy(s.createdAt)} · ${hm(s.createdAt)}${s.customerName ? ' · ' + esc(s.customerName) : ''}</div>${s.delivery || s.credit ? `<div>${dTag(s)}${cTag(s)}</div>` : ''}</div>
   <dl class="kv">
     <div><dt>ကုန်ပစ္စည်း</dt><dd>${s.items.length} မျိုး</dd></div>
     <div><dt>စုစုပေါင်း</dt><dd>${money(s.total)}</dd></div>
@@ -916,7 +918,7 @@ const cardHtml = s => `
 
 const rowHtml = s => `
 <tr>
-  <td><div class="pname" style="font-size:16px">${esc(s.no)}</div>${dTag(s)}</td>
+  <td><div class="pname" style="font-size:16px">${esc(s.no)}</div>${dTag(s)}${cTag(s)}</td>
   <td>${dmy(s.createdAt)} <span class="psub">${hm(s.createdAt)}</span></td>
   <td class="num">${s.items.length} မျိုး</td>
   <td class="num"><b>${money(s.total)}</b></td>
@@ -1001,8 +1003,10 @@ function openView(sale) {
       ${sale.discount > 0 ? `<div><span>လျှော့စျေး</span><span>- ${money(sale.discount)}</span></div>` : ''}
       ${sale.deliveryCharge > 0 ? `<div><span>Delivery charge</span><span>${money(sale.deliveryCharge)}</span></div>` : ''}
       <div class="grand"><span>စုစုပေါင်း</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>
-      ${sale.delivery && sale.delivery.cod ? '' : `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
+      ${sale.delivery && sale.delivery.cod ? '' : sale.credit ? `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
+      <div><span>အကြွေးကျန်</span><span class="due">${money(Math.max(0, sale.total + (sale.deliveryCharge || 0) - sale.paid))}</span></div>` : `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
       <div><span>ပြန်အမ်းငွေ</span><span>${money(sale.change)}</span></div>`}
+      ${(sale.payments || []).length ? `<h3 class="sec">အကြွေးပြန်ပေးငွေ</h3>${sale.payments.map(p => `<div><span>${p.date.split('-').reverse().join('/')}${p.note ? ' · ' + esc(p.note) : ''}</span><span>${money(p.amount)}</span></div>`).join('')}` : ''}
       <div><span>အမြတ်</span>${profHtml(prof)}</div>
     </div>`;
   $('#slview').showModal();
@@ -1124,6 +1128,7 @@ window.showPage = async function () {
     if (dc > 0) row('Delivery charge', num(dc));
     row('စုစုပေါင်း', num(sale.total + dc) + ' ကျပ်', 28, true);
     if (dv && dv.cod) row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc), 24, true);
+    else if (sale.credit) { row('ရရှိငွေ', num(sale.paid)); row('အကြွေးကျန်', num(Math.max(0, sale.total + dc - sale.paid)), 24, true); }
     else { row('ရရှိငွေ', num(sale.paid)); row('ပြန်အမ်းငွေ', num(sale.change)); }
     if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }
     return y + 28;
