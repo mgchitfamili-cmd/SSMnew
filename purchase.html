@@ -529,6 +529,7 @@ const ROUTES = {
   'summary': 'index.html', 'retail': 'retail.html',
   'sales/list': 'sales.html', 'sales/new': 'retail.html',
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
+  'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
@@ -1130,6 +1131,7 @@ function openView(po) {
       <div><span>ပေးပြီးငွေ</span><span>${money(po.paid)}</span></div>
       <div><span>ကျန်ငွေ</span><span class="${due > 0 ? 'due' : ''}">${money(due)}</span></div>
     </div>
+    ${(po.payments || []).length ? `<h3 class="sec">ပေးချေမှု မှတ်တမ်း</h3>${po.payments.map(x => `<div class="vrow"><div><div class="pname" style="font-size:16px">${dmy(x.date)}</div><div class="psub">${esc(x.note || '')}</div></div><b>${money(x.amount)}</b></div>`).join('')}` : ''}
     ${po.note ? `<div class="detail-desc">${esc(po.note)}</div>` : ''}`;
   $('#puview').showModal();
 }

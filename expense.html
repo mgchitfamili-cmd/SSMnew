@@ -552,6 +552,7 @@ const ROUTES = {
   'summary': 'index.html', 'retail': 'retail.html',
   'sales/list': 'sales.html', 'sales/new': 'retail.html',
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
+  'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
 };
 function go(id, label) {
   const target = ROUTES[id] || 'index.html?p=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(label);
