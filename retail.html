@@ -489,6 +489,7 @@ const MENU = [
     { id: 'purchase',  label: 'ဝယ်ယူမှု',            icon: 'bag', sub: LIST_SUB },
     { id: 'pricing',   label: 'ရောင်းစျေးနှင့် လျှော့စျေး', icon: 'percent' },
     { id: 'sales',     label: 'ရောင်းချမှု',          icon: 'chart', sub: LIST_SUB },
+    { id: 'delivery',  label: 'Delivery စာရင်း',     icon: 'truck' },
     { id: 'adjust',    label: 'စာရင်းညှိ',            icon: 'gear', sub: LIST_SUB },
     { id: 'expense',   label: 'အသုံးစရိတ်',          icon: 'minusCircle', sub: LIST_SUB },
     { id: 'debt',      label: 'အကြွေး ပေးချေမှု',     icon: 'card', sub: LIST_SUB },
@@ -563,7 +564,7 @@ const ROUTES = {
   'products/list': 'products.html', 'products/new': 'products.html?new=1',
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
   'summary': 'index.html', 'retail': 'retail.html',
-  'sales/list': 'sales.html', 'sales/new': 'retail.html',
+  'sales/list': 'sales.html', 'sales/new': 'retail.html', 'delivery': 'delivery.html',
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
@@ -793,6 +794,8 @@ async function loadCusts() {
   try {
     custs = await idb.all('customers');
     const el = R('custs'); if (!el) return;
+    const dl = R('dcos');
+    if (dl) dl.innerHTML = [...new Set(S.sales.map(x => x.delivery && x.delivery.courier).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
     el.innerHTML = custs.slice().sort((a, b) => a.name.localeCompare(b.name, 'my')).map(c => `<option value="${esc(c.name)}">`).join('');
   } catch (err) { console.error(err); }
 }
@@ -897,6 +900,21 @@ function mount() {
       <div class="fg" style="margin-top:14px">
         <div class="field full" id="w-rcust"><label for="rt-cust">ဖောက်သည်</label>
           <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
+        <div class="field full" id="w-rmode"><label for="rt-mode">ရောင်းနည်း</label>
+          <select id="rt-mode"><option value="shop">ဆိုင်မှာ ရောင်းမည်</option><option value="own">ကိုယ်ပိုင် delivery ဖြင့် ပို့မည်</option><option value="company">Delivery ကုမ္ပဏီနှင့် အပ်မည်</option></select></div>
+        <div class="full" id="rt-dbox" hidden><div class="fg">
+          <div class="field" id="w-rdco"><label for="rt-dco" id="rt-dcolbl">ပို့သူအမည်</label>
+            <input type="text" id="rt-dco" list="rt-dcos" autocomplete="off"><datalist id="rt-dcos"></datalist></div>
+          <div class="field" id="w-rdchg"><label for="rt-dchg">Delivery charge (ကျပ်)</label>
+            <input type="number" id="rt-dchg" min="0" step="1" inputmode="numeric" placeholder="0"></div>
+          <div class="field" id="w-rdph"><label for="rt-dph">ဖုန်း</label>
+            <input type="text" id="rt-dph" inputmode="tel" autocomplete="off"></div>
+          <div class="field" id="w-rdad"><label for="rt-dad">ပို့ရမည့်လိပ်စာ</label>
+            <input type="text" id="rt-dad" autocomplete="off"></div>
+          <label class="check full"><input type="checkbox" id="rt-dcod"><span>ပို့ပြီးမှ ငွေကောက်မည် (COD)</span></label>
+          <div class="field full" id="w-rdel"><div class="msg"></div></div>
+          <div class="hint full" id="rt-dnote"></div>
+        </div></div>
         <div class="field" id="w-rdisc"><label for="rt-disc">လျှော့စျေး (ကျပ်)</label>
           <input type="number" id="rt-disc" min="0" step="1" inputmode="numeric" placeholder="0"><div class="msg"></div></div>
         <div class="field" id="w-rpaid"><label for="rt-paid">ရရှိငွေ (ကျပ်)</label>
@@ -904,6 +922,7 @@ function mount() {
       </div>
       <div class="tot" aria-live="polite">
         <div><span>ကုန်ပစ္စည်းတန်ဖိုး</span><span id="rt-sub">0 ကျပ်</span></div>
+        <div id="rt-dline" hidden><span>Delivery charge</span><span id="rt-dval">0 ကျပ်</span></div>
         <div class="grand"><span>စုစုပေါင်း</span><span id="rt-total">0 ကျပ်</span></div>
         <div><span>ပြန်အမ်းငွေ</span><span id="rt-change">0 ကျပ်</span></div>
       </div>
@@ -942,6 +961,25 @@ function mount() {
     }
   });
 
+  const syncMode = () => {
+    const m = R('mode').value, d = m !== 'shop';
+    R('dbox').hidden = !d;
+    R('dcolbl').textContent = m === 'company' ? 'Delivery ကုမ္ပဏီအမည်' : 'ပို့သူအမည် (မဖြည့်လည်း ရ)';
+    R('dnote').textContent = m === 'company'
+      ? 'Delivery charge သည် ကုမ္ပဏီ၏ ငွေဖြစ်သည် (ဆိုင်ဝင်ငွေ မဟုတ်ပါ)။ COD ဆိုလျှင် ကုမ္ပဏီက charge ကို နှုတ်ပြီး ကျန်ငွေကို ဆိုင်သို့ ပြန်အပ်မည်။'
+      : m === 'own' ? 'Delivery charge သည် ဆိုင်ဝင်ငွေ ဖြစ်သည်။' : '';
+    if (!d) { R('dchg').value = ''; R('dcod').checked = false; }
+    syncCod(); setErr('rdel', ''); updateTotals();
+  };
+  const syncCod = () => {
+    const cod = R('mode').value !== 'shop' && R('dcod').checked;
+    R('paid').disabled = cod;
+    if (cod) { R('paid').value = ''; paidTouched = false; }
+  };
+  R('mode').addEventListener('change', syncMode);
+  R('dcod').addEventListener('change', () => { syncCod(); updateTotals(); });
+  R('dchg').addEventListener('input', () => { setErr('rdel', ''); updateTotals(); });
+  ['dco', 'dph', 'dad'].forEach(k => R(k).addEventListener('input', () => setErr('rdel', '')));
   R('disc').addEventListener('input', () => { setErr('rdisc', ''); updateTotals(); });
   R('paid').addEventListener('input', () => { paidTouched = true; setErr('rpaid', ''); updateTotals(); });
   R('clear').addEventListener('click', async () => {
@@ -958,7 +996,9 @@ function mount() {
 
 function resetCart() {
   cart = []; paidTouched = false; R('disc').value = ''; R('cust').value = ''; loadCusts();
-  ['rcart', 'rdisc', 'rpaid'].forEach(k => setErr(k, ''));
+  R('mode').value = 'shop'; ['dco', 'dchg', 'dph', 'dad'].forEach(k => R(k).value = ''); R('dcod').checked = false;
+  R('dbox').hidden = true; R('paid').disabled = false;
+  ['rcart', 'rdisc', 'rpaid', 'rdel'].forEach(k => setErr(k, ''));
   renderCart();
 }
 
@@ -1057,18 +1097,25 @@ function discOf() {
   return s === '' ? 0 : parsePrice(s);
 }
 
+const isDel = () => R('mode').value !== 'shop';
+const isCod = () => isDel() && R('dcod').checked;
+const dchgOf = () => { if (!isDel()) return 0; const s = R('dchg').value.trim(); return s === '' ? 0 : parsePrice(s); };
+
 function updateTotals() {
   const sub = cart.reduce((a, it) => a + lineOf(it), 0);
-  const disc = discOf() ?? 0, total = Math.max(0, sub - disc);
-  if (!paidTouched) R('paid').value = cart.length ? total : '';
-  const paid = parsePrice(R('paid').value) ?? 0, change = paid - total;
+  const disc = discOf() ?? 0, goods = Math.max(0, sub - disc);
+  const dch = dchgOf() ?? 0, total = goods + dch, cod = isCod();
+  if (!paidTouched && !cod) R('paid').value = cart.length ? total : '';
+  const paid = cod ? 0 : (parsePrice(R('paid').value) ?? 0), change = cod ? 0 : paid - total;
   R('sub').textContent = money(sub);
+  R('dline').hidden = !(isDel() && dch > 0); R('dval').textContent = money(dch);
   R('total').textContent = money(total);
   R('change').textContent = money(Math.max(0, change));
   R('barcount').textContent = cart.length;
   R('bartotal').textContent = money(total);
   const h = R('hint'); h.className = 'hint'; h.style.marginTop = '8px'; h.textContent = '';
-  if (cart.length && paid < total) { h.classList.add('warn'); h.textContent = `ရရှိငွေ ${money(total - paid)} လိုနေသည်`; }
+  if (cod && cart.length) { h.textContent = `ပို့ပြီးမှ ${money(total)} ကောက်ရမည်`; }
+  else if (cart.length && paid < total) { h.classList.add('warn'); h.textContent = `ရရှိငွေ ${money(total - paid)} လိုနေသည်`; }
 }
 
 /* ---------- Checkout ---------- */
@@ -1088,14 +1135,25 @@ async function checkout() {
   const disc = discOf();
   if (disc === null) errs.rdisc = 'လျှော့စျေး မှန်ကန်စွာ ထည့်ပါ';
   else if (disc > subtotal) errs.rdisc = 'လျှော့စျေးသည် ကုန်ပစ္စည်းတန်ဖိုးထက် မများရပါ';
-  const total = Math.max(0, subtotal - (disc || 0));
-  const paid = parsePrice(R('paid').value);
-  if (paid === null) errs.rpaid = 'ရရှိငွေ ထည့်ပါ';
-  else if (paid < total) errs.rpaid = 'ရရှိငွေ မလုံလောက်ပါ';
-  ['rcart', 'rdisc', 'rpaid'].forEach(k => setErr(k, errs[k]));
+  const goods = Math.max(0, subtotal - (disc || 0));
+  const del = isDel(), cod = isCod(), mode = R('mode').value;
+  const dch = dchgOf();
+  if (del) {
+    if (dch === null) errs.rdel = 'Delivery charge မှန်ကန်စွာ ထည့်ပါ';
+    else if (mode === 'company' && !R('dco').value.trim()) errs.rdel = 'Delivery ကုမ္ပဏီအမည် ထည့်ပါ';
+    else if (!R('dad').value.trim()) errs.rdel = 'ပို့ရမည့်လိပ်စာ ထည့်ပါ';
+  }
+  const total = goods + (del ? (dch || 0) : 0);
+  const paid = cod ? 0 : parsePrice(R('paid').value);
+  if (!cod) {
+    if (paid === null) errs.rpaid = 'ရရှိငွေ ထည့်ပါ';
+    else if (paid < total) errs.rpaid = 'ရရှိငွေ မလုံလောက်ပါ';
+  }
+  ['rcart', 'rdisc', 'rpaid', 'rdel'].forEach(k => setErr(k, errs[k]));
   const first = Object.keys(errs)[0];
   if (first) {
-    const el = { rcart: R('items').querySelector('input'), rdisc: R('disc'), rpaid: R('paid') }[first];
+    const el = { rcart: R('items').querySelector('input'), rdisc: R('disc'), rpaid: R('paid'),
+                 rdel: mode === 'company' && !R('dco').value.trim() ? R('dco') : (dch === null ? R('dchg') : R('dad')) }[first];
     if (first === 'rcart' && !cart.length) R('q').focus(); else if (el) el.focus();
     return;
   }
@@ -1112,9 +1170,17 @@ async function checkout() {
         return { productId: it.productId, name: titleOf(p), unit: unitName(p.unitId),
                  qty: Number(it.qty), price: Math.round(Number(it.price)), cost: p.costPrice || 0 };
       }),
-      subtotal, discount: disc || 0, total, paid, change: paid - total,
+      subtotal, discount: disc || 0, total: goods,
+      deliveryCharge: del ? (dch || 0) : 0,
+      paid, change: cod ? 0 : paid - total,
       customerId: cu ? cu.id : null, customerName: cu ? cu.name : custName,
     };
+    if (del) {
+      sale.delivery = {
+        mode, courier: R('dco').value.trim(), address: R('dad').value.trim(), phone: R('dph').value.trim(),
+        cod, status: 'pending', deliveredAt: null, settledAt: null, received: null, note: '', companyPaid: false,
+      };
+    }
     const changed = sale.items.map(it => {
       const p = find(it.productId);
       return { ...p, stock: round3((p.stock || 0) - it.qty), updatedAt: now };
@@ -1148,17 +1214,19 @@ function openView(sale, justSold) {
   $('#rt-vbody').innerHTML = `
     <div class="detail-top"><div><h3 class="pname">${esc(sale.no)}</h3>
       <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}</div></div>
-    ${justSold ? `<div class="tot" style="margin-top:0"><div><span>ပြန်အမ်းငွေ</span><span class="rt-chg">${money(sale.change)}</span></div></div>` : ''}
+    ${sale.delivery ? `<div class="psub" style="margin-top:6px">${sale.delivery.mode === 'company' ? 'Delivery ကုမ္ပဏီ' : 'ကိုယ်ပိုင် delivery'}${sale.delivery.courier ? ' - ' + esc(sale.delivery.courier) : ''}<br>${esc(sale.delivery.address)}${sale.delivery.phone ? ' · ' + esc(sale.delivery.phone) : ''}${sale.delivery.cod ? '<br><b>COD - ပို့ပြီးမှ ငွေကောက်ရမည်</b>' : ''}</div>` : ''}
+    ${justSold && !(sale.delivery && sale.delivery.cod) ? `<div class="tot" style="margin-top:0"><div><span>ပြန်အမ်းငွေ</span><span class="rt-chg">${money(sale.change)}</span></div></div>` : ''}
     <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
     ${sale.items.map(it => `<div class="vrow"><div><div class="pname" style="font-size:16px">${esc(it.name)}</div>
       <div class="psub">${qty(it.qty)} ${esc(it.unit || '')} × ${money(it.price)}</div></div>
       <b>${money(Math.round(it.qty * it.price))}</b></div>`).join('')}
     <div class="tot">
-      ${sale.discount > 0 ? `<div><span>ကုန်ပစ္စည်းတန်ဖိုး</span><span>${money(sale.subtotal)}</span></div>
-      <div><span>လျှော့စျေး</span><span>- ${money(sale.discount)}</span></div>` : ''}
-      <div class="grand"><span>စုစုပေါင်း</span><span>${money(sale.total)}</span></div>
-      <div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
-      <div><span>ပြန်အမ်းငွေ</span><span>${money(sale.change)}</span></div>
+      ${sale.discount > 0 || sale.deliveryCharge > 0 ? `<div><span>ကုန်ပစ္စည်းတန်ဖိုး</span><span>${money(sale.subtotal)}</span></div>
+      ${sale.discount > 0 ? `<div><span>လျှော့စျေး</span><span>- ${money(sale.discount)}</span></div>` : ''}` : ''}
+      ${sale.deliveryCharge > 0 ? `<div><span>Delivery charge</span><span>${money(sale.deliveryCharge)}</span></div>` : ''}
+      <div class="grand"><span>စုစုပေါင်း</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>
+      ${sale.delivery && sale.delivery.cod ? `<div><span>ကောက်ရန်ကျန်</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>` : `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
+      <div><span>ပြန်အမ်းငွေ</span><span>${money(sale.change)}</span></div>`}
     </div>`;
   $('#rtview').showModal();
 }
@@ -1389,16 +1457,24 @@ window.showPage = async function () {
     if (cfg.shopName || cfg.shopAddr || cfg.shopPhone) sep();
     row('ပြေစာအမှတ်', String(sale.no), 22);
     block(stamp(sale.createdAt), 22);
+    if (sale.customerName) block('ဖောက်သည်: ' + sale.customerName, 22);
+    if (sale.delivery) {
+      block('ပို့ရန်: ' + (sale.delivery.address || ''), 22);
+      if (sale.delivery.phone) block('ဖုန်း: ' + sale.delivery.phone, 22);
+    }
     sep();
     for (const it of sale.items) {
       block(it.name, 24, true);
       row(`${qty(it.qty)} ${it.unit || ''} × ${num(it.price)}`, num(Math.round(it.qty * it.price)), 22);
     }
     sep();
-    if (sale.discount > 0) { row('ကုန်ပစ္စည်းတန်ဖိုး', num(sale.subtotal)); row('လျှော့စျေး', '- ' + num(sale.discount)); }
-    row('စုစုပေါင်း', num(sale.total) + ' ကျပ်', 28, true);
-    row('ရရှိငွေ', num(sale.paid));
-    row('ပြန်အမ်းငွေ', num(sale.change));
+    const dc = Number(sale.deliveryCharge) || 0, dv = sale.delivery;
+    if (sale.discount > 0 || dc > 0) row('ကုန်ပစ္စည်းတန်ဖိုး', num(sale.subtotal));
+    if (sale.discount > 0) row('လျှော့စျေး', '- ' + num(sale.discount));
+    if (dc > 0) row('Delivery charge', num(dc));
+    row('စုစုပေါင်း', num(sale.total + dc) + ' ကျပ်', 28, true);
+    if (dv && dv.cod) row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc), 24, true);
+    else { row('ရရှိငွေ', num(sale.paid)); row('ပြန်အမ်းငွေ', num(sale.change)); }
     if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }
     return y + 28;
   }

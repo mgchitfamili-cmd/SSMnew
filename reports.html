@@ -493,6 +493,7 @@ const MENU = [
     { id: 'purchase',  label: 'ဝယ်ယူမှု',            icon: 'bag', sub: LIST_SUB },
     { id: 'pricing',   label: 'ရောင်းစျေးနှင့် လျှော့စျေး', icon: 'percent' },
     { id: 'sales',     label: 'ရောင်းချမှု',          icon: 'chart', sub: LIST_SUB },
+    { id: 'delivery',  label: 'Delivery စာရင်း',     icon: 'truck' },
     { id: 'adjust',    label: 'စာရင်းညှိ',            icon: 'gear', sub: LIST_SUB },
     { id: 'expense',   label: 'အသုံးစရိတ်',          icon: 'minusCircle', sub: LIST_SUB },
     { id: 'debt',      label: 'အကြွေး ပေးချေမှု',     icon: 'card', sub: LIST_SUB },
@@ -567,7 +568,7 @@ const ROUTES = {
   'products/list': 'products.html', 'products/new': 'products.html?new=1',
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
   'summary': 'index.html', 'retail': 'retail.html',
-  'sales/list': 'sales.html', 'sales/new': 'retail.html',
+  'sales/list': 'sales.html', 'sales/new': 'retail.html', 'delivery': 'delivery.html',
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
@@ -827,6 +828,7 @@ async function load() {
 const loaded = load().catch(err => { D.failed = true; console.error(err); });
 
 /* ---------- data in range ---------- */
+const ownDelInc = s => (s.delivery && s.delivery.mode === 'own') ? (Number(s.deliveryCharge) || 0) : 0;   // own-delivery charge = shop income
 const salesIn = () => D.sales.filter(s => inR(ymd(s.createdAt)));
 const poIn = () => S.purchases.filter(p => inR(p.date));
 const exIn = () => D.expenses.filter(e => inR(e.date));
@@ -870,6 +872,7 @@ function repSales() {
     stat('စုစုပေါင်း ရောင်းရငွေ', money(total)),
     stat('အမြတ်', signedMoney(profit), cls(profit)),
     stat('လျှော့စျေး', money(disc)),
+    ...(sum(L, ownDelInc) > 0 ? [stat('Delivery ဝင်ငွေ (ကိုယ်ပိုင်)', money(sum(L, ownDelInc)))] : []),
   ])
   + section('နေ့အလိုက်', listRows([...days.entries()].sort((a, b) => b[0].localeCompare(a[0]))
       .map(([d, o]) => vr(dmy(d), `${o.n} ကြိမ်`, money(o.t)))))
@@ -905,7 +908,11 @@ function cashDays() {
     if (!inR(d) || !v) return;
     const o = days.get(d) || { sale: 0, buy: 0, debt: 0, exp: 0 }; o[k] += v; days.set(d, o);
   };
-  D.sales.forEach(s => add(ymd(s.createdAt), 'sale', s.total));
+  D.sales.forEach(s => {
+    if (!s.delivery) add(ymd(s.createdAt), 'sale', s.total);
+    else if (!s.delivery.cod) add(ymd(s.createdAt), 'sale', s.total + ownDelInc(s));       // paid up-front
+    else if (s.delivery.status === 'settled') add(ymd(s.delivery.settledAt || s.createdAt), 'sale', s.delivery.received || 0);   // COD: cash arrives on settlement
+  });
   S.purchases.forEach(p => {
     const pays = p.payments || [];
     add(p.date, 'buy', Math.max(0, (p.paid || 0) - sum(pays, x => x.amount)));   // paid when buying
@@ -936,7 +943,7 @@ function repCash() {
 function repProfit() {
   const L = salesIn(), E = exIn();
   if (!L.length && !E.length) return noData();
-  const rev = sum(L, s => s.total), cogs = sum(L, cogsOf), gross = rev - cogs;
+  const rev = sum(L, s => s.total), cogs = sum(L, cogsOf), delInc = sum(L, ownDelInc), gross = rev - cogs + delInc;
   const exp = sum(E, e => e.amount), net = gross - exp;
   const margin = rev > 0 ? Math.round(gross / rev * 1000) / 10 : 0;
   const prods = new Map();
@@ -950,6 +957,7 @@ function repProfit() {
   <div class="tot">
     <div><span>ရောင်းရငွေ</span><span>${money(rev)}</span></div>
     <div><span>ကုန်ကျစရိတ် (ရောင်းပြီးပစ္စည်းတန်ဖိုး)</span><span>- ${money(cogs)}</span></div>
+    ${delInc > 0 ? `<div><span>Delivery ဝင်ငွေ (ကိုယ်ပိုင်)</span><span>+ ${money(delInc)}</span></div>` : ''}
     <div class="grand"><span>စုစုပေါင်း အမြတ်</span><span class="${cls(gross)}">${signedMoney(gross)}</span></div>
     <div><span>အသုံးစရိတ်</span><span>- ${money(exp)}</span></div>
     <div class="grand"><span>အသားတင် အမြတ်</span><span class="${cls(net)}">${signedMoney(net)}</span></div>

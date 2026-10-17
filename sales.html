@@ -496,6 +496,7 @@ const MENU = [
     { id: 'purchase',  label: 'ဝယ်ယူမှု',            icon: 'bag', sub: LIST_SUB },
     { id: 'pricing',   label: 'ရောင်းစျေးနှင့် လျှော့စျေး', icon: 'percent' },
     { id: 'sales',     label: 'ရောင်းချမှု',          icon: 'chart', sub: LIST_SUB },
+    { id: 'delivery',  label: 'Delivery စာရင်း',     icon: 'truck' },
     { id: 'adjust',    label: 'စာရင်းညှိ',            icon: 'gear', sub: LIST_SUB },
     { id: 'expense',   label: 'အသုံးစရိတ်',          icon: 'minusCircle', sub: LIST_SUB },
     { id: 'debt',      label: 'အကြွေး ပေးချေမှု',     icon: 'card', sub: LIST_SUB },
@@ -570,7 +571,7 @@ const ROUTES = {
   'products/list': 'products.html', 'products/new': 'products.html?new=1',
   'purchase/list': 'purchase.html', 'purchase/new': 'purchase.html?new=1',
   'summary': 'index.html', 'retail': 'retail.html',
-  'sales/list': 'sales.html', 'sales/new': 'retail.html',
+  'sales/list': 'sales.html', 'sales/new': 'retail.html', 'delivery': 'delivery.html',
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
@@ -805,6 +806,8 @@ const hm  = ts => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d
 const ymd = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const round3 = x => Math.round(x * 1000) / 1000;
 const profitOf = s => s.total - s.items.reduce((a, it) => a + Math.round(it.qty * (it.cost || 0)), 0);
+const DST = { pending: 'ပို့ရန်ကျန်', delivered: 'ပို့ပြီး', settled: 'ငွေလက်ခံပြီး' };
+const dTag = s => s.delivery ? `<span class="psub"> · ${s.delivery.mode === 'company' ? 'ကုမ္ပဏီ' : 'ကိုယ်ပိုင်'} delivery · ${DST[s.delivery.status] || ''}${s.delivery.cod ? ' · COD' : ''}</span>` : '';
 const profHtml = v => `<span class="${v < 0 ? 'due' : 'sl-profit'}">${money(v)}</span>`;
 
 function setRange(r) {
@@ -837,11 +840,13 @@ function ensureDlgs() {
     <button type="button" class="icon-btn" data-close aria-label="ပိတ်ရန်">${svg('x')}</button></div>
   <div class="db" id="slvBody"></div>
   <div class="df">
+    <button type="button" class="btn" id="slvPrint">ပရင့်ထုတ်ရန်</button>
     <button type="button" class="btn danger" id="slvDel">ရောင်းချမှု ဖျက်ရန်</button>
     <button type="button" class="btn primary" data-close>ပိတ်ရန်</button>
   </div>
 </dialog>`);
   $('#slview').addEventListener('click', e => { if (e.target.id === 'slview') e.target.close(); });
+  $('#slvPrint').addEventListener('click', () => { const s = S.sales.find(x => x.id === viewId); if (s) printSale(s); });
   $('#slvDel').addEventListener('click', () => { const s = S.sales.find(x => x.id === viewId); if (s) voidSale(s, true); });
 }
 
@@ -890,7 +895,7 @@ function filtered() {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
-const btns = () => [['view', 'eye', 'ကြည့်ရန်', ''], ['del', 'trash', 'ဖျက်ရန်', 'del']];
+const btns = () => [['view', 'eye', 'ကြည့်ရန်', ''], ['print', 'printer', 'ပရင့်ထုတ်ရန်', ''], ['del', 'trash', 'ဖျက်ရန်', 'del']];
 const cardBtns = s => btns().map(([a, i, l, c]) =>
   `<button class="abtn ${c}" data-act="${a}" data-id="${s.id}">${svg(i, 20)}<span>${l}</span></button>`).join('');
 const rowBtns = s => btns().map(([a, i, l, c]) =>
@@ -899,19 +904,19 @@ const rowBtns = s => btns().map(([a, i, l, c]) =>
 const cardHtml = s => `
 <article class="pcard">
   <div><h3 class="pname">${esc(s.no)}</h3>
-    <div class="psub">${dmy(s.createdAt)} · ${hm(s.createdAt)}${s.customerName ? ' · ' + esc(s.customerName) : ''}</div></div>
+    <div class="psub">${dmy(s.createdAt)} · ${hm(s.createdAt)}${s.customerName ? ' · ' + esc(s.customerName) : ''}</div>${s.delivery ? `<div>${dTag(s)}</div>` : ''}</div>
   <dl class="kv">
     <div><dt>ကုန်ပစ္စည်း</dt><dd>${s.items.length} မျိုး</dd></div>
     <div><dt>စုစုပေါင်း</dt><dd>${money(s.total)}</dd></div>
     <div><dt>လျှော့စျေး</dt><dd>${s.discount > 0 ? money(s.discount) : '-'}</dd></div>
     <div><dt>အမြတ်</dt><dd>${profHtml(profitOf(s))}</dd></div>
   </dl>
-  <div class="acts" style="grid-template-columns:repeat(2,1fr)">${cardBtns(s)}</div>
+  <div class="acts" style="grid-template-columns:repeat(3,1fr)">${cardBtns(s)}</div>
 </article>`;
 
 const rowHtml = s => `
 <tr>
-  <td><div class="pname" style="font-size:16px">${esc(s.no)}</div></td>
+  <td><div class="pname" style="font-size:16px">${esc(s.no)}</div>${dTag(s)}</td>
   <td>${dmy(s.createdAt)} <span class="psub">${hm(s.createdAt)}</span></td>
   <td class="num">${s.items.length} မျိုး</td>
   <td class="num"><b>${money(s.total)}</b></td>
@@ -953,7 +958,17 @@ async function act(a, id) {
   if (a === 'more') { U.limit += 50; return renderList(); }
   const s = S.sales.find(x => x.id === id); if (!s) return;
   if (a === 'view') return openView(s);
+  if (a === 'print') return printSale(s);
   if (a === 'del') return voidSale(s, false);
+}
+
+async function printSale(sale) {
+  if (!window.POSPrint) return toast('ပရင့်ထုတ်၍ မရပါ');
+  try {
+    const r = await window.POSPrint.printSale(sale, { auto: false });
+    if (r === 'rawbt') toast('RawBT သို့ ပို့ပြီးပါပြီ');
+    else if (r === 'image') toast('ဘောက်ချာပုံ ပြင်ဆင်ပြီးပါပြီ');
+  } catch (err) { console.error(err); toast('ပရင့်ထုတ်၍ မရပါ'); }
 }
 
 async function voidSale(sale, fromDialog) {
@@ -976,16 +991,18 @@ function openView(sale) {
   $('#slvBody').innerHTML = `
     <div class="detail-top"><div><h3 class="pname">${esc(sale.no)}</h3>
       <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}</div></div>
+    ${sale.delivery ? `<div class="psub" style="margin-top:6px">${sale.delivery.mode === 'company' ? 'Delivery ကုမ္ပဏီ' : 'ကိုယ်ပိုင် delivery'}${sale.delivery.courier ? ' - ' + esc(sale.delivery.courier) : ''} · ${DST[sale.delivery.status] || ''}<br>${esc(sale.delivery.address)}${sale.delivery.phone ? ' · ' + esc(sale.delivery.phone) : ''}${sale.delivery.cod ? '<br><b>COD</b>' : ''}${sale.delivery.status === 'settled' ? `<br>လက်ခံရငွေ ${money(sale.delivery.received || 0)}` : ''}</div>` : ''}
     <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
     ${sale.items.map(it => `<div class="vrow"><div><div class="pname" style="font-size:16px">${esc(it.name)}</div>
       <div class="psub">${qty(it.qty)} ${esc(it.unit || '')} × ${money(it.price)}</div></div>
       <b>${money(Math.round(it.qty * it.price))}</b></div>`).join('')}
     <div class="tot">
-      ${sale.discount > 0 ? `<div><span>ကုန်ပစ္စည်းတန်ဖိုး</span><span>${money(sale.subtotal)}</span></div>
-      <div><span>လျှော့စျေး</span><span>- ${money(sale.discount)}</span></div>` : ''}
-      <div class="grand"><span>စုစုပေါင်း</span><span>${money(sale.total)}</span></div>
-      <div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
-      <div><span>ပြန်အမ်းငွေ</span><span>${money(sale.change)}</span></div>
+      ${sale.discount > 0 || sale.deliveryCharge > 0 ? `<div><span>ကုန်ပစ္စည်းတန်ဖိုး</span><span>${money(sale.subtotal)}</span></div>` : ''}
+      ${sale.discount > 0 ? `<div><span>လျှော့စျေး</span><span>- ${money(sale.discount)}</span></div>` : ''}
+      ${sale.deliveryCharge > 0 ? `<div><span>Delivery charge</span><span>${money(sale.deliveryCharge)}</span></div>` : ''}
+      <div class="grand"><span>စုစုပေါင်း</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>
+      ${sale.delivery && sale.delivery.cod ? '' : `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
+      <div><span>ပြန်အမ်းငွေ</span><span>${money(sale.change)}</span></div>`}
       <div><span>အမြတ်</span>${profHtml(prof)}</div>
     </div>`;
   $('#slview').showModal();
@@ -1003,6 +1020,197 @@ window.showPage = async function () {
   }
   window.POS.ensureShared(); ensureDlgs(); mount();
 };
+})();
+</script>
+<script>
+/* ---------- Receipt printing ----------
+   The receipt is drawn on a canvas (so Burmese text renders correctly), converted to ESC/POS
+   raster data and handed to RawBT on Android via its intent link. Other devices get a PNG to save/share. */
+(() => {
+  const DEF = { paper: 58, shopName: '', shopAddr: '', shopPhone: '', footer: '', copies: 1, autoPrint: false };
+  const FONT = '"Noto Sans Myanmar","Myanmar Text","Padauk","Pyidaungsu",sans-serif';
+  const num = n => Math.round(Number(n) || 0).toLocaleString('en-US');
+  const qty = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
+  const p2 = n => String(n).padStart(2, '0');
+  const stamp = t => { const d = new Date(t); return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+
+  function loadCfg() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('pos-db', 5);
+        r.onupgradeneeded = () => {
+          ['products', 'categories', 'units', 'meta', 'purchases', 'sales', 'expenses', 'adjustments', 'customers', 'suppliers'].forEach(n => {
+            if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
+          });
+        };
+        r.onsuccess = () => {
+          const db = r.result;
+          try {
+            const q = db.transaction('meta').objectStore('meta').get('settings');
+            q.onsuccess = () => { db.close(); res({ ...DEF, ...((q.result && q.result.value) || {}) }); };
+            q.onerror = () => { db.close(); res({ ...DEF }); };
+          } catch (e) { db.close(); res({ ...DEF }); }
+        };
+        r.onerror = () => res({ ...DEF });
+      } catch (e) { res({ ...DEF }); }
+    });
+  }
+
+  /* ---- text wrapping (Burmese has no spaces: use word segmentation, then graphemes) ---- */
+  const wordSeg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('my', { granularity: 'word' }) : null;
+  const graphSeg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('my', { granularity: 'grapheme' }) : null;
+  const pieces = t => wordSeg ? Array.from(wordSeg.segment(t), s => s.segment) : t.split(/(?<=\s)/);
+  const graphemes = t => graphSeg ? Array.from(graphSeg.segment(t), s => s.segment) : Array.from(t);
+  function wrap(ctx, text, maxW) {
+    const lines = []; let cur = '';
+    for (const p of pieces(String(text))) {
+      if (ctx.measureText(cur + p).width <= maxW) { cur += p; continue; }
+      if (cur.trim()) { lines.push(cur.trimEnd()); }
+      cur = '';
+      if (ctx.measureText(p).width <= maxW) { cur = p.replace(/^\s+/, ''); continue; }
+      for (const g of graphemes(p)) {
+        if (ctx.measureText(cur + g).width <= maxW) cur += g; else { lines.push(cur); cur = g; }
+      }
+    }
+    if (cur.trim()) lines.push(cur.trimEnd());
+    return lines.length ? lines : [''];
+  }
+
+  /* ---- receipt layout; draw=false only measures the height ---- */
+  function paint(ctx, W, sale, cfg, draw) {
+    const M = 6, inner = W - M * 2;
+    let y = 6;
+    const font = (size, bold) => { ctx.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`; };
+    const lineH = size => Math.round(size * 1.55);
+    const put = (t, x, base, align) => { ctx.textAlign = align; ctx.fillText(t, x, base); };
+    const block = (t, size = 22, bold = false, align = 'left') => {
+      if (!String(t || '').trim()) return;
+      font(size, bold); const lh = lineH(size);
+      for (const l of wrap(ctx, t, inner)) {
+        if (draw) put(l, align === 'center' ? W / 2 : align === 'right' ? W - M : M, y + Math.round(lh * 0.74), align);
+        y += lh;
+      }
+    };
+    const row = (left, right, size = 22, bold = false) => {
+      font(size, bold); const lh = lineH(size);
+      const rw = Math.ceil(ctx.measureText(right).width);
+      wrap(ctx, left, Math.max(60, inner - rw - 10)).forEach((l, i) => {
+        if (draw) { const b = y + Math.round(lh * 0.74); put(l, M, b, 'left'); if (i === 0) put(right, W - M, b, 'right'); }
+        y += lh;
+      });
+    };
+    const sep = () => { y += 4; if (draw) for (let x = M; x < W - M; x += 10) ctx.fillRect(x, y, 6, 2); y += 10; };
+
+    if (cfg.shopName) block(cfg.shopName, 30, true, 'center');
+    block(cfg.shopAddr, 20, false, 'center');
+    if (cfg.shopPhone) block('ဖုန်း: ' + cfg.shopPhone, 20, false, 'center');
+    if (cfg.shopName || cfg.shopAddr || cfg.shopPhone) sep();
+    row('ပြေစာအမှတ်', String(sale.no), 22);
+    block(stamp(sale.createdAt), 22);
+    if (sale.customerName) block('ဖောက်သည်: ' + sale.customerName, 22);
+    if (sale.delivery) {
+      block('ပို့ရန်: ' + (sale.delivery.address || ''), 22);
+      if (sale.delivery.phone) block('ဖုန်း: ' + sale.delivery.phone, 22);
+    }
+    sep();
+    for (const it of sale.items) {
+      block(it.name, 24, true);
+      row(`${qty(it.qty)} ${it.unit || ''} × ${num(it.price)}`, num(Math.round(it.qty * it.price)), 22);
+    }
+    sep();
+    const dc = Number(sale.deliveryCharge) || 0, dv = sale.delivery;
+    if (sale.discount > 0 || dc > 0) row('ကုန်ပစ္စည်းတန်ဖိုး', num(sale.subtotal));
+    if (sale.discount > 0) row('လျှော့စျေး', '- ' + num(sale.discount));
+    if (dc > 0) row('Delivery charge', num(dc));
+    row('စုစုပေါင်း', num(sale.total + dc) + ' ကျပ်', 28, true);
+    if (dv && dv.cod) row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc), 24, true);
+    else { row('ရရှိငွေ', num(sale.paid)); row('ပြန်အမ်းငွေ', num(sale.change)); }
+    if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }
+    return y + 28;
+  }
+
+  async function renderReceipt(sale, cfg) {
+    try { await document.fonts.ready; } catch (e) { /* ignore */ }
+    const W = Number(cfg.paper) === 80 ? 576 : 384;      // printable dots at 203 dpi
+    const H = paint(document.createElement('canvas').getContext('2d'), W, sale, cfg, false);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#000'; ctx.textBaseline = 'alphabetic';
+    paint(ctx, W, sale, cfg, true);
+    return c;
+  }
+
+  /* ---- canvas -> ESC/POS raster (GS v 0), in bands of 240 rows ---- */
+  function toEscpos(canvas, copies) {
+    const w = canvas.width, h = canvas.height, wb = w >> 3;
+    const px = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const BAND = 240, bands = Math.ceil(h / BAND);
+    const one = 2 + bands * 8 + wb * h + 3;
+    const out = new Uint8Array(one * copies);
+    let o = 0;
+    for (let c = 0; c < copies; c++) {
+      out[o++] = 0x1b; out[o++] = 0x40;                    // ESC @  (initialise)
+      for (let y0 = 0; y0 < h; y0 += BAND) {
+        const bh = Math.min(BAND, h - y0);
+        out.set([0x1d, 0x76, 0x30, 0x00, wb & 255, wb >> 8, bh & 255, bh >> 8], o); o += 8;
+        for (let y = y0; y < y0 + bh; y++) for (let xb = 0; xb < wb; xb++) {
+          let b = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const i = (y * w + xb * 8 + bit) * 4;
+            if (px[i + 3] > 0 && (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) < 150) b |= 0x80 >> bit;
+          }
+          out[o++] = b;
+        }
+      }
+      out[o++] = 0x1b; out[o++] = 0x64; out[o++] = 0x04;   // ESC d 4 (feed 4 lines)
+    }
+    return out;
+  }
+
+  function b64(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  const rawbtUrl = bytes => 'intent:base64,' + b64(bytes) + '#Intent;scheme=RawBT;package=ru.a402d.RawBTprinter;end;';
+
+  async function saveImage(canvas, name) {
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], name + '.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name + '.png';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
+  function sample() {
+    const items = [
+      { name: 'နမူနာ ကုန်ပစ္စည်း', unit: 'ခု', qty: 2, price: 1500 },
+      { name: 'ကော်ဖီမစ် ၃ ခုတွဲ အထုပ်ကြီး', unit: 'ထုပ်', qty: 1, price: 4800 },
+    ];
+    const subtotal = items.reduce((a, it) => a + Math.round(it.qty * it.price), 0);
+    return { no: 'TEST-0001', createdAt: Date.now(), items, subtotal, discount: 300, total: subtotal - 300, paid: 10000, change: 10000 - (subtotal - 300) };
+  }
+
+  window.POSPrint = {
+    loadCfg, renderReceipt, sample,
+    // -> 'rawbt' (sent to RawBT) | 'image' (PNG saved/shared) | 'skip' (auto-print is off)
+    async printSale(sale, opt = {}) {
+      const cfg = opt.cfg || await loadCfg();
+      if (opt.auto && !cfg.autoPrint) return 'skip';
+      const canvas = await renderReceipt(sale, cfg);
+      if (/Android/i.test(navigator.userAgent)) {
+        const copies = Math.min(5, Math.max(1, parseInt(cfg.copies, 10) || 1));
+        window.location.href = rawbtUrl(toEscpos(canvas, copies));
+        return 'rawbt';
+      }
+      await saveImage(canvas, 'receipt-' + sale.no);
+      return 'image';
+    },
+    _toEscpos: toEscpos, _wrap: wrap,
+  };
 })();
 </script>
 <script>
