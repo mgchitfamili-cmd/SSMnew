@@ -676,8 +676,24 @@ render();
     const eMonth = expenses.filter(e => (e.date || '').startsWith(monthStr));
     const expMonth = eMonth.reduce((a, e) => a + (e.amount || 0), 0);
     const profitMonth = sMonth.reduce((a, s) => a + profitOf(s), 0);
-    const netMonth = profitMonth - expMonth;
     const sum = (a, f) => a.reduce((x, o) => x + f(o), 0);
+    const chg = s => Number(s.deliveryCharge) || 0;
+    const delIncMonth = sum(sMonth, s => (s.delivery && s.delivery.mode === 'own') ? chg(s) : 0);   // own-delivery charge = shop income
+    const netMonth = profitMonth + delIncMonth - expMonth;
+
+    // customer credit still to collect
+    const saleDue = s => s.credit ? Math.max(0, s.total + chg(s) - (s.paid || 0)) : 0;
+    const recv = sum(sales, saleDue), recvSales = sales.filter(s => saleDue(s) > 0);
+    const byCust = new Map();
+    recvSales.forEach(s => { const k = s.customerName || 'ဖောက်သည် မသတ်မှတ်'; byCust.set(k, (byCust.get(k) || 0) + saleDue(s)); });
+    const recvList = [...byCust.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    // delivery
+    const dls = sales.filter(s => s.delivery);
+    const dPend = dls.filter(s => s.delivery.status === 'pending').length;
+    const codOpen = dls.filter(s => s.delivery.cod && s.delivery.status !== 'settled');
+    const codSum = sum(codOpen, s => s.delivery.mode === 'company' ? s.total : s.total + chg(s));
+    const coOwed = sum(dls, s => (s.delivery.mode === 'company' && !s.delivery.cod && chg(s) > 0 && !s.delivery.companyPaid) ? chg(s) : 0);
 
     const active = products.filter(p => p.active !== false);
     const outOf = active.filter(p => !(p.stock > 0));
@@ -704,6 +720,7 @@ render();
       <div class="sm-quick">
         <a class="primary" href="retail.html">လက်လီအရောင်း</a>
         <a href="purchase.html?new=1">ဝယ်ယူမှု အသစ်</a>
+        <a href="delivery.html">Delivery စာရင်း</a>
       </div>
 
       <h2 class="sm-h">ယနေ့</h2>
@@ -719,10 +736,19 @@ render();
         ${card('ရောင်းရငွေ', money(sum(sMonth, s => s.total)), `${sMonth.length} ကြိမ်`)}
         ${card('အမြတ်', money(profitMonth), 'ကုန်ကျစျေးနုတ်ပြီး')}
         ${card('အသုံးစရိတ်', money(expMonth), eMonth.length ? `${eMonth.length} စာရင်း` : 'မရှိသေးပါ')}
-        ${card('အသားတင်အမြတ်', money(netMonth), 'အမြတ် − အသုံးစရိတ်', netMonth < 0 ? 'warn' : 'hl')}
+        ${delIncMonth > 0 ? card('Delivery ဝင်ငွေ', money(delIncMonth), 'ကိုယ်ပိုင် delivery') : ''}
+        ${card('အသားတင်အမြတ်', money(netMonth), delIncMonth > 0 ? 'အမြတ် + delivery − အသုံးစရိတ်' : 'အမြတ် − အသုံးစရိတ်', netMonth < 0 ? 'warn' : 'hl')}
         ${card('ဝယ်ယူမှု', money(sum(pMonth, p => p.total)), `${pMonth.length} စာရင်း`)}
         ${card('ပေးရန်ကျန် အကြွေး', money(debt), debtN ? `${debtN} စာရင်း` : 'မရှိပါ', debt > 0 ? 'warn' : '')}
+        ${card('ကောက်ရန်ကျန် အကြွေး', money(recv), recvSales.length ? `${byCust.size} ဦး · ${recvSales.length} စာရင်း` : 'မရှိပါ', recv > 0 ? 'warn' : '')}
       </div>
+
+      ${dls.length ? `<h2 class="sm-h">Delivery</h2>
+      <div class="sm-grid">
+        ${card('ပို့ရန်ကျန်', qty(dPend), 'အော်ဒါ', dPend ? 'warn' : '')}
+        ${card('COD ကောက်ရန်ကျန်', money(codSum), codOpen.length ? `${codOpen.length} အော်ဒါ` : 'မရှိပါ', codSum > 0 ? 'warn' : '')}
+        ${card('ကုမ္ပဏီသို့ ပေးရန်', money(coOwed), 'delivery charge', coOwed > 0 ? 'warn' : '')}
+      </div>` : ''}
 
       <h2 class="sm-h">ကုန်ပစ္စည်း</h2>
       <div class="sm-grid">
@@ -742,6 +768,9 @@ render();
           <div class="sm-list">${rows(recent, s => `<div class="sm-row"><div class="n"><b>${esc(s.no)}</b><span>${hm(s.createdAt)} · ${s.items.length} မျိုး</span></div><div class="a">${money(s.total)}</div></div>`, 'ရောင်းချမှု မရှိသေးပါ')}</div>
         </div>
       </div>
+
+      ${recvList.length ? `<h2 class="sm-h">ကောက်ရန်ကျန် အများဆုံး ဖောက်သည်များ</h2>
+      <div class="sm-list">${recvList.map(([n, v]) => `<div class="sm-row"><div class="n"><b>${esc(n)}</b></div><div class="a">${money(v)}</div></div>`).join('')}</div>` : ''}
 
       ${outList.length ? `<h2 class="sm-h">ဖြည့်ရန် လိုသော ပစ္စည်းများ</h2>
       <div class="sm-list">${outList.map(p => `<div class="sm-row"><div class="n"><b>${esc(p.nameMm || p.name)}</b><span>${esc(p.code || '')}${p.minStock > 0 ? ' · အနည်းဆုံး ' + qty(p.minStock) : ''}</span></div><div class="a">${qty(p.stock || 0)}</div></div>`).join('')}</div>` : ''}
