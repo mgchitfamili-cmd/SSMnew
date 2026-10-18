@@ -894,7 +894,7 @@ function filtered() {
       const d = ymd(s.createdAt);
       if (U.from && d < U.from) return false;
       if (U.to && d > U.to) return false;
-      return !q || [s.no, s.customerName, ...s.items.map(i => i.name)].some(v => norm(v).includes(q));
+      return !q || [s.no, s.customerName, s.seller, ...s.items.map(i => i.name)].some(v => norm(v).includes(q));
     })
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -994,7 +994,7 @@ function openView(sale) {
   const prof = profitOf(sale);
   $('#slvBody').innerHTML = `
     <div class="detail-top"><div><h3 class="pname">${esc(sale.no)}</h3>
-      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}</div></div>
+      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}${sale.seller ? `<div class="psub">ရောင်းသူ - ${esc(sale.seller)}</div>` : ''}</div></div>
     ${sale.delivery ? `<div class="psub" style="margin-top:6px">${sale.delivery.mode === 'company' ? 'Delivery ကုမ္ပဏီ' : 'ကိုယ်ပိုင် delivery'}${sale.delivery.courier ? ' - ' + esc(sale.delivery.courier) : ''} · ${DST[sale.delivery.status] || ''}<br>${esc(sale.delivery.address)}${sale.delivery.phone ? ' · ' + esc(sale.delivery.phone) : ''}${sale.delivery.cod ? '<br><b>COD</b>' : ''}${sale.delivery.status === 'settled' ? `<br>လက်ခံရငွေ ${money(sale.delivery.received || 0)}` : ''}</div>` : ''}
     <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
     ${sale.items.map(it => `<div class="vrow"><div><div class="pname" style="font-size:16px">${esc(it.name)}</div>
@@ -1114,6 +1114,7 @@ window.showPage = async function () {
     row('ပြေစာအမှတ်', String(sale.no), 22);
     block(stamp(sale.createdAt), 22);
     if (sale.customerName) block('ဖောက်သည်: ' + sale.customerName, 22);
+    if (sale.seller) block('ရောင်းသူ: ' + sale.seller, 22);
     if (sale.delivery) {
       block('ပို့ရန်: ' + (sale.delivery.address || ''), 22);
       if (sale.delivery.phone) block('ဖုန်း: ' + sale.delivery.phone, 22);

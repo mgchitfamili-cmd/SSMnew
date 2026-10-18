@@ -798,6 +798,8 @@ async function loadCusts() {
     custs = await idb.all('customers');
     const el = R('custs'); if (!el) return;
     const dl = R('dcos');
+    const sl = R('sellers');
+    if (sl) sl.innerHTML = [...new Set(S.sales.map(x => x.seller).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
     if (dl) dl.innerHTML = [...new Set(S.sales.map(x => x.delivery && x.delivery.courier).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
     el.innerHTML = custs.slice().sort((a, b) => a.name.localeCompare(b.name, 'my')).map(c => `<option value="${esc(c.name)}">`).join('');
   } catch (err) { console.error(err); }
@@ -902,6 +904,8 @@ function mount() {
       <div class="fg" style="margin-top:14px">
         <div class="field full" id="w-rcust"><label for="rt-cust">ဖောက်သည်</label>
           <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
+        <div class="field full" id="w-rseller"><label for="rt-seller">ရောင်းသူ</label>
+          <input type="text" id="rt-seller" list="rt-sellers" autocomplete="off" placeholder="အမည်ရွေးပါ / ရိုက်ထည့်ပါ"><datalist id="rt-sellers"></datalist></div>
         <div class="field full" id="w-rmode"><label for="rt-mode">ရောင်းနည်း</label>
           <select id="rt-mode"><option value="shop">ဆိုင်မှာရောင်းမည်</option><option value="own">Home Delivery</option><option value="co:Ko Nyein Chan Aung">Ko Nyein Chan Aung</option><option value="co:Royal Express">Royal Express</option><option value="co:Ninja Van">Ninja Van</option></select></div>
         <div class="full" id="rt-dbox" hidden><div class="fg">
@@ -998,6 +1002,8 @@ function mount() {
   R('pay').addEventListener('click', checkout);
   R('bargo').addEventListener('click', () => R('cartbox').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
+  try { R('seller').value = localStorage.getItem('ssm.seller') || ''; } catch (e) {}
+  R('seller').addEventListener('change', () => { try { localStorage.setItem('ssm.seller', R('seller').value.trim()); } catch (e) {} });
   renderProducts(); renderCart(); loadCusts();
 }
 
@@ -1193,7 +1199,9 @@ async function checkout() {
       paid, change: cod ? 0 : Math.max(0, paid - total),
       customerId: cu ? cu.id : null, customerName: cu ? cu.name : custName,
       acctId: R('acct').value || null,
+      seller: R('seller').value.trim(),
     };
+    try { localStorage.setItem('ssm.seller', sale.seller); } catch (e) {}
     ACCT.remember(R('acct').value);
     if (!cod && paid < total) sale.credit = true;      // part/unpaid: balance is collected later from the customer
     if (del) {
@@ -1235,7 +1243,7 @@ function openView(sale, justSold) {
   $('#rt-void').hidden = !!justSold;
   $('#rt-vbody').innerHTML = `
     <div class="detail-top"><div><h3 class="pname">${esc(sale.no)}</h3>
-      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}</div></div>
+      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}${sale.seller ? `<div class="psub">ရောင်းသူ - ${esc(sale.seller)}</div>` : ''}</div></div>
     ${sale.delivery ? `<div class="psub" style="margin-top:6px">${sale.delivery.mode === 'company' ? 'Delivery ကုမ္ပဏီ' : 'ကိုယ်ပိုင် delivery'}${sale.delivery.courier ? ' - ' + esc(sale.delivery.courier) : ''}<br>${esc(sale.delivery.address)}${sale.delivery.phone ? ' · ' + esc(sale.delivery.phone) : ''}${sale.delivery.cod ? '<br><b>COD - ပို့ပြီးမှ ငွေကောက်ရမည်</b>' : ''}</div>` : ''}
     ${justSold && !(sale.delivery && sale.delivery.cod) ? `<div class="tot" style="margin-top:0"><div><span>ပြန်အမ်းငွေ</span><span class="rt-chg">${money(sale.change)}</span></div></div>` : ''}
     <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
@@ -1481,6 +1489,7 @@ window.showPage = async function () {
     row('ပြေစာအမှတ်', String(sale.no), 22);
     block(stamp(sale.createdAt), 22);
     if (sale.customerName) block('ဖောက်သည်: ' + sale.customerName, 22);
+    if (sale.seller) block('ရောင်းသူ: ' + sale.seller, 22);
     if (sale.delivery) {
       block('ပို့ရန်: ' + (sale.delivery.address || ''), 22);
       if (sale.delivery.phone) block('ဖုန်း: ' + sale.delivery.phone, 22);
