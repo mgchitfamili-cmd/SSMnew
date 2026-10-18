@@ -904,7 +904,7 @@ function mount() {
         <div class="field full" id="w-rcust"><label for="rt-cust">ဖောက်သည်</label>
           <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
         <div class="field full" id="w-rmode"><label for="rt-mode">ရောင်းနည်း</label>
-          <select id="rt-mode"><option value="shop">ဆိုင်မှာ ရောင်းမည်</option><option value="own">ကိုယ်ပိုင် delivery ဖြင့် ပို့မည်</option><option value="company">Delivery ကုမ္ပဏီနှင့် အပ်မည်</option></select></div>
+          <select id="rt-mode"><option value="shop">ဆိုင်မှာရောင်းမည်</option><option value="own">Home Delivery</option><option value="co:Ko Nyein Chan Aung">Ko Nyein Chan Aung</option><option value="co:Royal Express">Royal Express</option><option value="co:Ninja Van">Ninja Van</option></select></div>
         <div class="full" id="rt-dbox" hidden><div class="fg">
           <div class="field" id="w-rdco"><label for="rt-dco" id="rt-dcolbl">ပို့သူအမည်</label>
             <input type="text" id="rt-dco" list="rt-dcos" autocomplete="off"><datalist id="rt-dcos"></datalist></div>
@@ -966,8 +966,11 @@ function mount() {
   });
 
   const syncMode = () => {
-    const m = R('mode').value, d = m !== 'shop';
+    const m = modeOf(), d = m !== 'shop';
     R('dbox').hidden = !d;
+    const mv = R('mode').value;
+    R('dco').value = m === 'company' ? mv.slice(3) : '';     // company is picked from the list
+    $('#w-rdco').hidden = m === 'company';
     R('dcolbl').textContent = m === 'company' ? 'Delivery ကုမ္ပဏီအမည်' : 'ပို့သူအမည် (မဖြည့်လည်း ရ)';
     R('dnote').textContent = m === 'company'
       ? 'Delivery charge သည် ကုမ္ပဏီ၏ ငွေဖြစ်သည် (ဆိုင်ဝင်ငွေ မဟုတ်ပါ)။ COD ဆိုလျှင် ကုမ္ပဏီက charge ကို နှုတ်ပြီး ကျန်ငွေကို ဆိုင်သို့ ပြန်အပ်မည်။'
@@ -1108,6 +1111,7 @@ function discOf() {
   return s === '' ? 0 : parsePrice(s);
 }
 
+const modeOf = () => { const v = R('mode').value; return v.startsWith('co:') ? 'company' : v; };
 const isDel = () => R('mode').value !== 'shop';
 const isCod = () => isDel() && R('dcod').checked;
 const dchgOf = () => { if (!isDel()) return 0; const s = R('dchg').value.trim(); return s === '' ? 0 : parsePrice(s); };
@@ -1152,7 +1156,7 @@ async function checkout() {
   if (disc === null) errs.rdisc = 'လျှော့စျေး မှန်ကန်စွာ ထည့်ပါ';
   else if (disc > subtotal) errs.rdisc = 'လျှော့စျေးသည် ကုန်ပစ္စည်းတန်ဖိုးထက် မများရပါ';
   const goods = Math.max(0, subtotal - (disc || 0));
-  const del = isDel(), cod = isCod(), mode = R('mode').value;
+  const del = isDel(), cod = isCod(), mode = modeOf();
   const dch = dchgOf();
   if (del) {
     if (dch === null) errs.rdel = 'Delivery charge မှန်ကန်စွာ ထည့်ပါ';
