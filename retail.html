@@ -59,7 +59,27 @@
     display: grid; place-items: center; cursor: pointer;
   }
   .icon-btn:active { background: var(--accent-soft); }
-  .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; white-space: nowrap; }
+  .rt-seller {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    min-width: 0; max-width: 54%; padding: 4px 10px 4px 4px;
+    background: var(--accent-soft); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+  }
+  .rt-seller:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .rt-sav {
+    flex: none; width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 15px; font-weight: 700; line-height: 1;
+    background: var(--accent); color: var(--surface);
+  }
+  .rt-sav svg { display: block; }
+  .rt-sel { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+  .rt-sel small { font-size: 10px; color: var(--muted); }
+  .rt-sel select {
+    appearance: none; -webkit-appearance: none; border: 0; outline: 0; background: transparent;
+    color: var(--ink); font: inherit; font-size: 14px; font-weight: 600;
+    padding: 0; margin: 0; width: 100%; min-width: 0; text-overflow: ellipsis; cursor: pointer;
+  }
+  .rt-seller > svg { flex: none; color: var(--muted); }
   main { flex: 1; overflow: auto; padding: 20px; }
   main p { color: var(--muted); margin: 4px 0 0; }
 
@@ -428,6 +448,12 @@
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
     <h1 id="pageTitle">လက်လီအရောင်း</h1>
+    <label class="rt-seller" for="rt-seller">
+      <span class="rt-sav" id="rt-sav" aria-hidden="true"></span>
+      <span class="rt-sel"><small>ရောင်းသူ</small>
+        <select id="rt-seller" aria-label="ရောင်းသူ"><option value="">ရွေးပါ</option></select></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </label>
   </header>
   <main id="content"></main>
 </div>
@@ -802,15 +828,25 @@ async function loadCusts() {
     el.innerHTML = custs.slice().sort((a, b) => a.name.localeCompare(b.name, 'my')).map(c => `<option value="${esc(c.name)}">`).join('');
   } catch (err) { console.error(err); }
 }
+const SELLER_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>';
+function syncSellerUi() {
+  const sel = R('seller'), av = document.getElementById('rt-sav'); if (!sel || !av) return;
+  const name = sel.value ? sel.selectedOptions[0].textContent.trim() : '';
+  if (!name) { av.innerHTML = SELLER_ICON; return; }
+  let ch = Array.from(name)[0];
+  try { ch = [...new Intl.Segmenter('my', { granularity: 'grapheme' }).segment(name)][0].segment; } catch (e) {}
+  av.textContent = ch.toUpperCase();
+}
 async function loadStaff() {      // အသုံးပြုသူ (staff.html) → ရောင်းသူ drop-down
   const sel = R('seller'); if (!sel) return;
   try {
     const list = (await idb.all('meta')).filter(m => String(m.id).startsWith('staff-')).sort((a, b) => a.name.localeCompare(b.name, 'my'));
     let keep = sel.value; if (!keep) { try { keep = localStorage.getItem('ssm.seller') || ''; } catch (e) {} }
-    sel.innerHTML = `<option value="">${list.length ? '— ရောင်းသူ ရွေးပါ —' : '— အသုံးပြုသူ မရှိသေးပါ —'}</option>`
+    sel.innerHTML = `<option value="">${list.length ? 'ရွေးပါ' : 'မရှိသေးပါ'}</option>`
       + list.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
     if (list.some(m => m.id === keep)) sel.value = keep;
   } catch (err) { console.error(err); }
+  syncSellerUi();
 }
 const custOf = nm => custs.find(c => norm(c.name) === norm(nm));
 
@@ -912,8 +948,6 @@ function mount() {
       <div class="fg" style="margin-top:14px">
         <div class="field full" id="w-rcust"><label for="rt-cust">ဖောက်သည်</label>
           <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
-        <div class="field full" id="w-rseller"><label for="rt-seller">ရောင်းသူ</label>
-          <select id="rt-seller"><option value="">— ရောင်းသူ ရွေးပါ —</option></select></div>
         <div class="field full" id="w-rmode"><label for="rt-mode">ရောင်းနည်း</label>
           <select id="rt-mode"><option value="shop">ဆိုင်မှာရောင်းမည်</option><option value="own">Home Delivery</option><option value="co:Ko Nyein Chan Aung">Ko Nyein Chan Aung</option><option value="co:Royal Express">Royal Express</option><option value="co:Ninja Van">Ninja Van</option></select></div>
         <div class="full" id="rt-dbox" hidden><div class="fg">
@@ -1011,7 +1045,7 @@ function mount() {
   R('bargo').addEventListener('click', () => R('cartbox').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
   loadStaff();
-  R('seller').addEventListener('change', () => { try { localStorage.setItem('ssm.seller', R('seller').value); } catch (e) {} });
+  R('seller').addEventListener('change', () => { syncSellerUi(); try { localStorage.setItem('ssm.seller', R('seller').value); } catch (e) {} });
   renderProducts(); renderCart(); loadCusts();
 }
 
