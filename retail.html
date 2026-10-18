@@ -65,6 +65,13 @@
     min-width: 0; max-width: 54%; padding: 4px 10px 4px 4px;
     background: var(--accent-soft); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
   }
+  .rt-clear {
+    flex: none; display: flex; align-items: center; justify-content: center; gap: 6px;
+    height: 40px; padding: 0 12px; border-radius: 999px; cursor: pointer;
+    background: transparent; border: 1px solid var(--line); color: #dc2626; font: inherit; font-size: 14px; font-weight: 600;
+  }
+  @media (prefers-color-scheme: dark) { .rt-clear { color: #f87171; } }
+  @media (max-width: 480px) { .rt-clear { width: 40px; padding: 0; } .rt-clear span { display: none; } }
   .rt-seller:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .rt-sav {
     flex: none; width: 32px; height: 32px; border-radius: 50%;
@@ -213,6 +220,7 @@
 
   /* Form controls */
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field[hidden] { display: none; }
   .field > label, .flabel { font-size: 14px; font-weight: 500; }
   .field .req { color: var(--danger); margin-left: 3px; }
   .field input[type=text], .field input[type=number], .field select, .field textarea, .addrow input {
@@ -390,6 +398,7 @@
   .ltotal { min-height: 46px; display: flex; align-items: center; font-weight: 600; font-size: 16px; }
   .tot { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--page); display: grid; gap: 6px; }
   .tot > div { display: flex; justify-content: space-between; gap: 12px; }
+  .tot > div[hidden] { display: none; }
   .tot .grand { font-size: 18px; font-weight: 700; }
   .vrow { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
   .due { color: var(--danger); font-weight: 600; }
@@ -423,6 +432,13 @@
   .rt-cart-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .rt-cart-h .sec { flex: 1; }
   .rt-cart-h .linkbtn { align-self: center; margin-top: 8px; }
+  .rt-custbtn {
+    flex: none; display: flex; align-items: center; justify-content: center; gap: 6px;
+    min-width: 40px; height: 40px; padding: 0 10px; margin-top: 6px; border-radius: 999px; cursor: pointer;
+    background: transparent; border: 1px solid var(--line); color: var(--muted); font: inherit; font-size: 14px; font-weight: 600;
+  }
+  .rt-custbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .rt-custbtn span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qtyrow { display: flex; gap: 6px; }
   .qtyrow input { text-align: center; min-width: 0; flex: 1; }
   .qtyrow .btn { padding: 0; width: 44px; flex: none; font-size: 20px; }
@@ -454,6 +470,9 @@
         <select id="rt-seller" aria-label="ရောင်းသူ"><option value="">ရွေးပါ</option></select></span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </label>
+    <button type="button" class="rt-clear" id="rt-clear" title="ရှင်းရန်" aria-label="ရှင်းရန်">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><span>ရှင်းရန်</span>
+    </button>
   </header>
   <main id="content"></main>
 </div>
@@ -828,6 +847,13 @@ async function loadCusts() {
     el.innerHTML = custs.slice().sort((a, b) => a.name.localeCompare(b.name, 'my')).map(c => `<option value="${esc(c.name)}">`).join('');
   } catch (err) { console.error(err); }
 }
+let custFill = { ph: '', ad: '' };
+function syncCustUi() {
+  const b = R('custbtn'), n = R('custname'); if (!b || !n) return;
+  const v = R('cust').value.trim(), ph = R('dph').value.trim(), ad = R('dad').value.trim();
+  const label = v || ph;
+  n.textContent = label; n.hidden = !label; b.classList.toggle('on', !!(v || ph || ad));
+}
 const SELLER_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>';
 function syncSellerUi() {
   const av = document.getElementById('rt-sav'); if (av) av.innerHTML = SELLER_ICON;
@@ -905,6 +931,24 @@ function ensureDlgs() {
     <div id="rt-hlist"></div>
   </div>
   <div class="df"><button type="button" class="btn" data-close>ပိတ်ရန်</button></div>
+</dialog>
+
+<dialog class="dlg narrow" id="rtcust" aria-labelledby="rt-ctitle">
+  <div class="dh"><h2 id="rt-ctitle">ဖောက်သည် အချက်အလက်</h2>
+    <button type="button" class="icon-btn" data-close aria-label="ပိတ်ရန်">${svg('x')}</button></div>
+  <div class="db">
+    <div class="field full" id="w-rcust" style="margin-top:14px"><label for="rt-cust">အမည်</label>
+      <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
+    <div class="field full" id="w-rdph" style="margin-top:14px"><label for="rt-dph">ဖုန်း</label>
+      <input type="text" id="rt-dph" inputmode="tel" autocomplete="off"></div>
+    <div class="field full" id="w-rdad" style="margin-top:14px"><label for="rt-dad">လိပ်စာ</label>
+      <input type="text" id="rt-dad" autocomplete="off"></div>
+    <div class="hint" style="margin-top:10px">ဆိုင်ရောင်းရော Delivery ပါ ထည့်နိုင်သည်။ Delivery အပ်လျှင် လိပ်စာ မဖြစ်မနေ ထည့်ပါ။ အကြွေးရောင်းလိုလျှင် စာရင်းသွင်းထားသော ဖောက်သည်ကို ရွေးပါ။</div>
+  </div>
+  <div class="df">
+    <button type="button" class="btn" id="rt-cclear">ဖယ်ရန်</button>
+    <button type="button" class="btn primary" id="rt-cok">ပြီးပြီ</button>
+  </div>
 </dialog>`);
 
   $('#rtview').addEventListener('click', e => { if (e.target.id === 'rtview') e.target.close(); });
@@ -935,25 +979,19 @@ function mount() {
     <section class="rt-cartbox" id="rt-cartbox">
       <div class="rt-cart-h">
         <h3 class="sec">ဈေးခြင်း</h3>
-        <button type="button" class="linkbtn" id="rt-clear">ရှင်းရန်</button>
+        <button type="button" class="rt-custbtn" id="rt-custbtn" title="ဖောက်သည်" aria-label="ဖောက်သည်">${svg('userPlus', 20)}<span id="rt-custname" hidden></span></button>
       </div>
       <div class="field" id="w-rcart"><div class="msg"></div></div>
       <div id="rt-items"></div>
 
       <div class="fg" style="margin-top:14px">
-        <div class="field full" id="w-rcust"><label for="rt-cust">ဖောက်သည်</label>
-          <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
         <div class="field full" id="w-rmode"><label for="rt-mode">ရောင်းနည်း</label>
           <select id="rt-mode"><option value="shop">ဆိုင်မှာရောင်းမည်</option><option value="own">Home Delivery</option><option value="co:Ko Nyein Chan Aung">Ko Nyein Chan Aung</option><option value="co:Royal Express">Royal Express</option><option value="co:Ninja Van">Ninja Van</option></select></div>
         <div class="full" id="rt-dbox" hidden><div class="fg">
-          <div class="field" id="w-rdco"><label for="rt-dco" id="rt-dcolbl">ပို့သူအမည်</label>
+          <div class="field" id="w-rdco" hidden><label for="rt-dco" id="rt-dcolbl">ပို့သူအမည်</label>
             <input type="text" id="rt-dco" list="rt-dcos" autocomplete="off"><datalist id="rt-dcos"></datalist></div>
           <div class="field" id="w-rdchg"><label for="rt-dchg">Delivery charge (ကျပ်)</label>
             <input type="number" id="rt-dchg" min="0" step="1" inputmode="numeric" placeholder="0"></div>
-          <div class="field" id="w-rdph"><label for="rt-dph">ဖုန်း</label>
-            <input type="text" id="rt-dph" inputmode="tel" autocomplete="off"></div>
-          <div class="field" id="w-rdad"><label for="rt-dad">ပို့ရမည့်လိပ်စာ</label>
-            <input type="text" id="rt-dad" autocomplete="off"></div>
           <label class="check full"><input type="checkbox" id="rt-dcod"><span>ပို့ပြီးမှ ငွေကောက်မည် (COD)</span></label>
           <div class="field full" id="w-rdel"><div class="msg"></div></div>
           <div class="hint full" id="rt-dnote"></div>
@@ -1010,7 +1048,7 @@ function mount() {
     R('dbox').hidden = !d;
     const mv = R('mode').value;
     R('dco').value = m === 'company' ? mv.slice(3) : '';     // company is picked from the list
-    $('#w-rdco').hidden = m === 'company';
+    $('#w-rdco').hidden = true;                              // courier name box is never shown
     R('dcolbl').textContent = m === 'company' ? 'Delivery ကုမ္ပဏီအမည်' : 'ပို့သူအမည် (မဖြည့်လည်း ရ)';
     R('dnote').textContent = m === 'company'
       ? 'Delivery charge သည် ကုမ္ပဏီ၏ ငွေဖြစ်သည် (ဆိုင်ဝင်ငွေ မဟုတ်ပါ)။ COD ဆိုလျှင် ကုမ္ပဏီက charge ကို နှုတ်ပြီး ကျန်ငွေကို ဆိုင်သို့ ပြန်အပ်မည်။'
@@ -1026,11 +1064,23 @@ function mount() {
   R('mode').addEventListener('change', syncMode);
   R('dcod').addEventListener('change', () => { syncCod(); updateTotals(); });
   R('dchg').addEventListener('input', () => { setErr('rdel', ''); updateTotals(); });
-  ['dco', 'dph', 'dad'].forEach(k => R(k).addEventListener('input', () => setErr('rdel', '')));
+  ['dco', 'dph', 'dad'].forEach(k => R(k).addEventListener('input', () => { setErr('rdel', ''); syncCustUi(); }));
   R('disc').addEventListener('input', () => { setErr('rdisc', ''); updateTotals(); });
   R('paid').addEventListener('input', () => { paidTouched = true; setErr('rpaid', ''); updateTotals(); });
   ACCT.fill(R('acct'));
-  R('cust').addEventListener('input', () => { setErr('rpaid', ''); updateTotals(); });
+  R('cust').addEventListener('input', () => {
+    setErr('rpaid', '');
+    const c = custOf(R('cust').value.trim());
+    if (c) {                                   // saved customer → fill phone/address (don't overwrite what was typed)
+      if (!R('dph').value.trim() || R('dph').value === custFill.ph) R('dph').value = custFill.ph = c.phone || '';
+      if (!R('dad').value.trim() || R('dad').value === custFill.ad) R('dad').value = custFill.ad = c.address || '';
+    }
+    syncCustUi(); updateTotals();
+  });
+  R('custbtn').addEventListener('click', () => { $('#rtcust').showModal(); R('cust').focus(); });
+  $('#rtcust').addEventListener('click', e => { if (e.target.id === 'rtcust') e.target.close(); });
+  $('#rt-cok').addEventListener('click', () => $('#rtcust').close());
+  $('#rt-cclear').addEventListener('click', () => { R('cust').value = ''; R('dph').value = ''; R('dad').value = ''; custFill = { ph: '', ad: '' }; R('cust').dispatchEvent(new Event('input')); $('#rtcust').close(); });
   R('clear').addEventListener('click', async () => {
     if (!cart.length) return;
     if (!await ask('ဈေးခြင်းထဲက ကုန်ပစ္စည်းအားလုံးကို ရှင်းမလား?', 'ရှင်းမည်')) return;
@@ -1045,9 +1095,10 @@ function mount() {
 }
 
 function resetCart() {
-  cart = []; paidTouched = false; R('disc').value = ''; R('cust').value = ''; loadCusts();
+  cart = []; paidTouched = false; R('disc').value = ''; R('cust').value = ''; syncCustUi(); loadCusts();
   R('mode').value = 'shop'; ['dco', 'dchg', 'dph', 'dad'].forEach(k => R(k).value = ''); R('dcod').checked = false;
   R('dbox').hidden = true; R('paid').disabled = false;
+  custFill = { ph: '', ad: '' }; syncCustUi();
   ['rcart', 'rdisc', 'rpaid', 'rdel'].forEach(k => setErr(k, ''));
   renderCart();
 }
@@ -1175,7 +1226,7 @@ function updateTotals() {
     h.classList.add('warn');
     h.textContent = custOf(R('cust').value.trim())
       ? `အကြွေး ${money(total - paid)} ကျန်မည် (ဖောက်သည်အကြွေးအဖြစ် မှတ်မည်)`
-      : `ရရှိငွေ ${money(total - paid)} လိုနေသည် — အကြွေးရောင်းလိုလျှင် ဖောက်သည် ရွေးပါ`;
+      : `ရရှိငွေ ${money(total - paid)} လိုနေသည် — အကြွေးရောင်းလိုလျှင် ဈေးခြင်းဘေးက ဖောက်သည် icon မှ ရွေးပါ`;
   }
 }
 
@@ -1202,17 +1253,18 @@ async function checkout() {
   if (del) {
     if (dch === null) errs.rdel = 'Delivery charge မှန်ကန်စွာ ထည့်ပါ';
     else if (mode === 'company' && !R('dco').value.trim()) errs.rdel = 'Delivery ကုမ္ပဏီအမည် ထည့်ပါ';
-    else if (!R('dad').value.trim()) errs.rdel = 'ပို့ရမည့်လိပ်စာ ထည့်ပါ';
+    else if (!R('dad').value.trim()) errs.rdel = 'လိပ်စာ ထည့်ပါ — ဈေးခြင်းဘေးက ဖောက်သည် icon မှာ ထည့်ပါ';
   }
   const total = goods + (del ? (dch || 0) : 0);
   const paid = cod ? 0 : parsePrice(R('paid').value);
   if (!cod) {
     if (paid === null) errs.rpaid = 'ရရှိငွေ ထည့်ပါ';
-    else if (paid < total && !custOf(R('cust').value.trim())) errs.rpaid = 'ရရှိငွေ မလုံလောက်ပါ — အကြွေးရောင်းလိုလျှင် စာရင်းသွင်းထားသော ဖောက်သည် ရွေးပါ';
+    else if (paid < total && !custOf(R('cust').value.trim())) errs.rpaid = 'ရရှိငွေ မလုံလောက်ပါ — အကြွေးရောင်းလိုလျှင် ဈေးခြင်းဘေးက ဖောက်သည် icon မှ ရွေးပါ';
   }
   ['rcart', 'rdisc', 'rpaid', 'rdel'].forEach(k => setErr(k, errs[k]));
   const first = Object.keys(errs)[0];
   if (first) {
+    if (first === 'rdel' && !R('dad').value.trim() && dch !== null) { $('#rtcust').showModal(); R('dad').focus(); return; }
     const el = { rcart: R('items').querySelector('input'), rdisc: R('disc'), rpaid: R('paid'),
                  rdel: mode === 'company' && !R('dco').value.trim() ? R('dco') : (dch === null ? R('dchg') : R('dad')) }[first];
     if (first === 'rcart' && !cart.length) R('q').focus(); else if (el) el.focus();
@@ -1238,6 +1290,7 @@ async function checkout() {
       acctId: R('acct').value || null,
       sellerId: R('seller').value || null,
       seller: R('seller').value ? R('seller').selectedOptions[0].textContent : '',
+      customerPhone: R('dph').value.trim(), customerAddress: R('dad').value.trim(),
     };
     ACCT.remember(R('acct').value);
     if (!cod && paid < total) sale.credit = true;      // part/unpaid: balance is collected later from the customer
@@ -1280,7 +1333,7 @@ function openView(sale, justSold) {
   $('#rt-void').hidden = !!justSold;
   $('#rt-vbody').innerHTML = `
     <div class="detail-top"><div><h3 class="pname">${esc(sale.no)}</h3>
-      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}${sale.seller ? `<div class="psub">ရောင်းသူ - ${esc(sale.seller)}</div>` : ''}</div></div>
+      <div class="psub">${dmy(sale.createdAt)} · ${hm(sale.createdAt)}</div>${sale.customerName ? `<div class="psub">ဖောက်သည် - ${esc(sale.customerName)}</div>` : ''}${!sale.delivery && (sale.customerPhone || sale.customerAddress) ? `<div class="psub">${esc(sale.customerPhone || '')}${sale.customerPhone && sale.customerAddress ? ' · ' : ''}${esc(sale.customerAddress || '')}</div>` : ''}${sale.seller ? `<div class="psub">ရောင်းသူ - ${esc(sale.seller)}</div>` : ''}</div></div>
     ${sale.delivery ? `<div class="psub" style="margin-top:6px">${sale.delivery.mode === 'company' ? 'Delivery ကုမ္ပဏီ' : 'ကိုယ်ပိုင် delivery'}${sale.delivery.courier ? ' - ' + esc(sale.delivery.courier) : ''}<br>${esc(sale.delivery.address)}${sale.delivery.phone ? ' · ' + esc(sale.delivery.phone) : ''}${sale.delivery.cod ? '<br><b>COD - ပို့ပြီးမှ ငွေကောက်ရမည်</b>' : ''}</div>` : ''}
     ${justSold && !(sale.delivery && sale.delivery.cod) ? `<div class="tot" style="margin-top:0"><div><span>ပြန်အမ်းငွေ</span><span class="rt-chg">${money(sale.change)}</span></div></div>` : ''}
     <h3 class="sec">ကုန်ပစ္စည်းများ</h3>
@@ -1526,6 +1579,10 @@ window.showPage = async function () {
     row('ပြေစာအမှတ်', String(sale.no), 22);
     block(stamp(sale.createdAt), 22);
     if (sale.customerName) block('ဖောက်သည်: ' + sale.customerName, 22);
+    if (!sale.delivery) {
+      if (sale.customerPhone) block('ဖုန်း: ' + sale.customerPhone, 22);
+      if (sale.customerAddress) block('လိပ်စာ: ' + sale.customerAddress, 22);
+    }
     if (sale.seller) block('ရောင်းသူ: ' + sale.seller, 22);
     if (sale.delivery) {
       block('ပို့ရန်: ' + (sale.delivery.address || ''), 22);
