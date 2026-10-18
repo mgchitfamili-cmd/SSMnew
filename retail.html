@@ -886,7 +886,6 @@ function mount() {
     <section>
       <div class="rt-top">
         <label class="search">${svg('search', 20)}<input id="rt-q" type="search" placeholder="အမည်၊ ကုဒ်၊ ဘားကုဒ်ဖြင့် ရှာရန်" autocomplete="off"></label>
-        <button class="btn" id="rt-hist">${svg('list', 20)} မှတ်တမ်း</button>
       </div>
       <div class="count" id="rt-pcount"></div>
       <div id="rt-plist"></div>
@@ -997,7 +996,6 @@ function mount() {
     resetCart();
   });
   R('pay').addEventListener('click', checkout);
-  R('hist').addEventListener('click', openHist);
   R('bargo').addEventListener('click', () => R('cartbox').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
   renderProducts(); renderCart(); loadCusts();
