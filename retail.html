@@ -830,12 +830,7 @@ async function loadCusts() {
 }
 const SELLER_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>';
 function syncSellerUi() {
-  const sel = R('seller'), av = document.getElementById('rt-sav'); if (!sel || !av) return;
-  const name = sel.value ? sel.selectedOptions[0].textContent.trim() : '';
-  if (!name) { av.innerHTML = SELLER_ICON; return; }
-  let ch = Array.from(name)[0];
-  try { ch = [...new Intl.Segmenter('my', { granularity: 'grapheme' }).segment(name)][0].segment; } catch (e) {}
-  av.textContent = ch.toUpperCase();
+  const av = document.getElementById('rt-sav'); if (av) av.innerHTML = SELLER_ICON;
 }
 async function loadStaff() {      // အသုံးပြုသူ (staff.html) → ရောင်းသူ drop-down
   const sel = R('seller'); if (!sel) return;
