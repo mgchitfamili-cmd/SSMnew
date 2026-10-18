@@ -571,7 +571,7 @@ const ROUTES = {
   'expense/list': 'expense.html', 'expense/new': 'expense.html?new=1',
   'debt/list': 'debt.html', 'debt/new': 'debt.html?new=1',
   'adjust/list': 'adjust.html', 'adjust/new': 'adjust.html?new=1',
-  'customers': 'customers.html', 'suppliers': 'suppliers.html', 'accounts': 'accounts.html',
+  'customers': 'customers.html', 'users': 'staff.html', 'suppliers': 'suppliers.html', 'accounts': 'accounts.html',
   'r-purchase/view': 'reports.html?p=r-purchase%2Fview', 'r-sales/view': 'reports.html?p=r-sales%2Fview', 'r-cash/view': 'reports.html?p=r-cash%2Fview', 'r-adjust/view': 'reports.html?p=r-adjust%2Fview', 'r-stock': 'reports.html?p=r-stock', 'r-profit': 'reports.html?p=r-profit', 'r-expense': 'reports.html?p=r-expense', 'r-account': 'reports.html?p=r-account',
 };
 function go(id, label) {
@@ -798,10 +798,18 @@ async function loadCusts() {
     custs = await idb.all('customers');
     const el = R('custs'); if (!el) return;
     const dl = R('dcos');
-    const sl = R('sellers');
-    if (sl) sl.innerHTML = [...new Set(S.sales.map(x => x.seller).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
     if (dl) dl.innerHTML = [...new Set(S.sales.map(x => x.delivery && x.delivery.courier).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
     el.innerHTML = custs.slice().sort((a, b) => a.name.localeCompare(b.name, 'my')).map(c => `<option value="${esc(c.name)}">`).join('');
+  } catch (err) { console.error(err); }
+}
+async function loadStaff() {      // အသုံးပြုသူ (staff.html) → ရောင်းသူ drop-down
+  const sel = R('seller'); if (!sel) return;
+  try {
+    const list = (await idb.all('meta')).filter(m => String(m.id).startsWith('staff-')).sort((a, b) => a.name.localeCompare(b.name, 'my'));
+    let keep = sel.value; if (!keep) { try { keep = localStorage.getItem('ssm.seller') || ''; } catch (e) {} }
+    sel.innerHTML = `<option value="">${list.length ? '— ရောင်းသူ ရွေးပါ —' : '— အသုံးပြုသူ မရှိသေးပါ —'}</option>`
+      + list.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+    if (list.some(m => m.id === keep)) sel.value = keep;
   } catch (err) { console.error(err); }
 }
 const custOf = nm => custs.find(c => norm(c.name) === norm(nm));
@@ -905,7 +913,7 @@ function mount() {
         <div class="field full" id="w-rcust"><label for="rt-cust">ဖောက်သည်</label>
           <input type="text" id="rt-cust" list="rt-custs" autocomplete="off" placeholder="မဖြည့်လည်း ရသည်"><datalist id="rt-custs"></datalist></div>
         <div class="field full" id="w-rseller"><label for="rt-seller">ရောင်းသူ</label>
-          <input type="text" id="rt-seller" list="rt-sellers" autocomplete="off" placeholder="အမည်ရွေးပါ / ရိုက်ထည့်ပါ"><datalist id="rt-sellers"></datalist></div>
+          <select id="rt-seller"><option value="">— ရောင်းသူ ရွေးပါ —</option></select></div>
         <div class="field full" id="w-rmode"><label for="rt-mode">ရောင်းနည်း</label>
           <select id="rt-mode"><option value="shop">ဆိုင်မှာရောင်းမည်</option><option value="own">Home Delivery</option><option value="co:Ko Nyein Chan Aung">Ko Nyein Chan Aung</option><option value="co:Royal Express">Royal Express</option><option value="co:Ninja Van">Ninja Van</option></select></div>
         <div class="full" id="rt-dbox" hidden><div class="fg">
@@ -1002,8 +1010,8 @@ function mount() {
   R('pay').addEventListener('click', checkout);
   R('bargo').addEventListener('click', () => R('cartbox').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
-  try { R('seller').value = localStorage.getItem('ssm.seller') || ''; } catch (e) {}
-  R('seller').addEventListener('change', () => { try { localStorage.setItem('ssm.seller', R('seller').value.trim()); } catch (e) {} });
+  loadStaff();
+  R('seller').addEventListener('change', () => { try { localStorage.setItem('ssm.seller', R('seller').value); } catch (e) {} });
   renderProducts(); renderCart(); loadCusts();
 }
 
@@ -1199,9 +1207,9 @@ async function checkout() {
       paid, change: cod ? 0 : Math.max(0, paid - total),
       customerId: cu ? cu.id : null, customerName: cu ? cu.name : custName,
       acctId: R('acct').value || null,
-      seller: R('seller').value.trim(),
+      sellerId: R('seller').value || null,
+      seller: R('seller').value ? R('seller').selectedOptions[0].textContent : '',
     };
-    try { localStorage.setItem('ssm.seller', sale.seller); } catch (e) {}
     ACCT.remember(R('acct').value);
     if (!cod && paid < total) sale.credit = true;      // part/unpaid: balance is collected later from the customer
     if (del) {
