@@ -1005,7 +1005,7 @@ function openView(sale) {
       ${sale.discount > 0 ? `<div><span>လျှော့စျေး</span><span>- ${money(sale.discount)}</span></div>` : ''}
       ${sale.deliveryCharge > 0 ? `<div><span>Delivery charge</span><span>${money(sale.deliveryCharge)}</span></div>` : ''}
       <div class="grand"><span>စုစုပေါင်း</span><span>${money(sale.total + (sale.deliveryCharge || 0))}</span></div>
-      ${sale.delivery && sale.delivery.cod ? '' : sale.credit ? `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
+      ${sale.delivery && sale.delivery.cod ? (sale.paid > 0 ? `<div><span>စရံရရှိငွေ</span><span>${money(sale.paid)}</span></div>` : '') : sale.credit ? `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
       <div><span>အကြွေးကျန်</span><span class="due">${money(Math.max(0, sale.total + (sale.deliveryCharge || 0) - sale.paid))}</span></div>` : `<div><span>ရရှိငွေ</span><span>${money(sale.paid)}</span></div>
       <div><span>ပြန်အမ်းငွေ</span><span>${money(sale.change)}</span></div>`}
       ${(sale.payments || []).length ? `<h3 class="sec">အကြွေးပြန်ပေးငွေ</h3>${sale.payments.map(p => `<div><span>${p.date.split('-').reverse().join('/')}${p.note ? ' · ' + esc(p.note) : ''}</span><span>${money(p.amount)}</span></div>`).join('')}` : ''}
@@ -1134,7 +1134,7 @@ window.showPage = async function () {
     if (sale.discount > 0) row('လျှော့စျေး', '- ' + num(sale.discount));
     if (dc > 0) row('Delivery charge', num(dc));
     row('စုစုပေါင်း', num(sale.total + dc) + ' ကျပ်', 28, true);
-    if (dv && dv.cod) row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc), 24, true);
+    if (dv && dv.cod) { if (sale.paid > 0) row('စရံရရှိငွေ', num(sale.paid)); row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc - (sale.paid || 0)), 24, true); }
     else if (sale.credit) { row('ရရှိငွေ', num(sale.paid)); row('အကြွေးကျန်', num(Math.max(0, sale.total + dc - sale.paid)), 24, true); }
     else { row('ရရှိငွေ', num(sale.paid)); row('ပြန်အမ်းငွေ', num(sale.change)); }
     if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }

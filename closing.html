@@ -795,7 +795,10 @@ function calcDay(d, sales, purchases, expenses) {
     }
     else if (!s.delivery) { if (created === d) r.cashSales += s.total; }
     else if (!s.delivery.cod) { if (created === d) r.cashSales += s.total + ownDelInc(s); }           // paid up-front
-    else if (s.delivery.status === 'settled') { if (ymd(s.delivery.settledAt || s.createdAt) === d) r.cod += s.delivery.received || 0; }   // COD: cash arrives on settlement
+    else {                                                   // COD: deposit at order time, balance on settlement
+      if (created === d) r.cashSales += s.paid || 0;
+      if (s.delivery.status === 'settled' && ymd(s.delivery.settledAt || s.createdAt) === d) r.cod += s.delivery.received || 0;
+    }
   });
   purchases.forEach(p => {
     const pays = p.payments || [];

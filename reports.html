@@ -920,7 +920,10 @@ function cashDays() {
     }
     else if (!s.delivery) add(ymd(s.createdAt), 'sale', s.total);
     else if (!s.delivery.cod) add(ymd(s.createdAt), 'sale', s.total + ownDelInc(s));       // paid up-front
-    else if (s.delivery.status === 'settled') add(ymd(s.delivery.settledAt || s.createdAt), 'sale', s.delivery.received || 0);   // COD: cash arrives on settlement
+    else {                                                                                  // COD: deposit at order time, balance on settlement
+      add(ymd(s.createdAt), 'sale', s.paid || 0);
+      if (s.delivery.status === 'settled') add(ymd(s.delivery.settledAt || s.createdAt), 'sale', s.delivery.received || 0);
+    }
   });
   S.purchases.forEach(p => {
     const pays = p.payments || [];

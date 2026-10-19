@@ -694,7 +694,7 @@ render();
     const dls = sales.filter(s => s.delivery);
     const dPend = dls.filter(s => s.delivery.status === 'pending').length;
     const codOpen = dls.filter(s => s.delivery.cod && s.delivery.status !== 'settled');
-    const codSum = sum(codOpen, s => s.delivery.mode === 'company' ? s.total : s.total + chg(s));
+    const codSum = sum(codOpen, s => Math.max(0, (s.delivery.mode === 'company' ? s.total : s.total + chg(s)) - (Number(s.paid) || 0)));
     const coOwed = sum(dls, s => (s.delivery.mode === 'company' && !s.delivery.cod && chg(s) > 0 && !s.delivery.companyPaid) ? chg(s) : 0);
 
     const active = products.filter(p => p.active !== false);
@@ -1119,7 +1119,7 @@ render();
     if (sale.discount > 0) row('လျှော့စျေး', '- ' + num(sale.discount));
     if (dc > 0) row('Delivery charge', num(dc));
     row('စုစုပေါင်း', num(sale.total + dc) + ' ကျပ်', 28, true);
-    if (dv && dv.cod) row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc), 24, true);
+    if (dv && dv.cod) { if (sale.paid > 0) row('စရံရရှိငွေ', num(sale.paid)); row('ပို့ပြီးမှ ပေးရန်', num(sale.total + dc - (sale.paid || 0)), 24, true); }
     else if (sale.credit) { row('ရရှိငွေ', num(sale.paid)); row('အကြွေးကျန်', num(Math.max(0, sale.total + dc - sale.paid)), 24, true); }
     else { row('ရရှိငွေ', num(sale.paid)); row('ပြန်အမ်းငွေ', num(sale.change)); }
     if (String(cfg.footer || '').trim()) { sep(); block(cfg.footer, 22, false, 'center'); }

@@ -816,7 +816,8 @@ const MODE = { own: 'ကိုယ်ပိုင်', company: 'ကုမ္ပ�
 const dls = () => S.sales.filter(s => s.delivery);
 const chargeOf = s => Number(s.deliveryCharge) || 0;
 // COD: what the shop expects to receive. Company keeps its own charge; own driver hands over everything.
-const expectedOf = s => !s.delivery.cod ? 0 : (s.delivery.mode === 'company' ? s.total : s.total + chargeOf(s));
+const depositOf = s => s.delivery.cod ? (Number(s.paid) || 0) : 0;      // deposit (စရံ) received when the order was taken
+const expectedOf = s => !s.delivery.cod ? 0 : Math.max(0, (s.delivery.mode === 'company' ? s.total : s.total + chargeOf(s)) - depositOf(s));
 const owedToCo = s => (s.delivery.mode === 'company' && !s.delivery.cod && chargeOf(s) > 0 && !s.delivery.companyPaid) ? chargeOf(s) : 0;
 const isOpen = s => s.delivery.status === 'pending' || (s.delivery.cod && s.delivery.status === 'delivered') || owedToCo(s) > 0;
 
@@ -975,6 +976,7 @@ function openView(s) {
       <div><span>Delivery charge ${d.mode === 'company' ? '(ကုမ္ပဏီငွေ)' : '(ဆိုင်ဝင်ငွေ)'}</span><span>${money(chargeOf(s))}</span></div>
       <div class="grand"><span>ဖောက်သည်ပေးရမည့်စုစုပေါင်း</span><span>${money(s.total + chargeOf(s))}</span></div>
       <div><span>အခြေအနေ</span><span>${DST[d.status]}${d.cod ? ' · COD' : ''}</span></div>
+      ${d.cod && depositOf(s) > 0 ? `<div><span>စရံရပြီးငွေ</span><span>${money(depositOf(s))}</span></div>` : ''}
       ${d.cod ? `<div><span>ဆိုင်လက်ခံရမည့်ငွေ</span><span>${money(expectedOf(s))}</span></div>` : ''}
       ${d.status === 'settled' ? `<div><span>လက်ခံရရှိငွေ</span><span>${money(d.received || 0)}</span></div>` : ''}
       ${d.note ? `<div><span>မှတ်ချက်</span><span>${esc(d.note)}</span></div>` : ''}
@@ -988,7 +990,9 @@ function openSettle(s) {
   $('#dlsInfo').innerHTML = `<div class="pname" style="font-size:16px">${esc(s.no)}</div>
     <div class="psub">${MODE[d.mode]}${d.courier ? ' - ' + esc(d.courier) : ''}</div>
     <div class="tot">
-      <div><span>ဖောက်သည်ဆီက ကောက်ရမည့်စုစုပေါင်း</span><span>${money(s.total + chargeOf(s))}</span></div>
+      ${depositOf(s) > 0 ? `<div><span>စုစုပေါင်း</span><span>${money(s.total + chargeOf(s))}</span></div>
+      <div><span>စရံရပြီး</span><span>- ${money(depositOf(s))}</span></div>` : ''}
+      <div><span>ဖောက်သည်ဆီက ကောက်ရမည့်ငွေ</span><span>${money(s.total + chargeOf(s) - depositOf(s))}</span></div>
       ${d.mode === 'company' && chargeOf(s) ? `<div><span>ကုမ္ပဏီက နှုတ်မည့် delivery charge</span><span>- ${money(chargeOf(s))}</span></div>` : ''}
       <div class="grand"><span>ဆိုင်လက်ခံရမည့်ငွေ</span><span>${money(exp)}</span></div></div>`;
   $('#dl-rec').value = exp; $('#dl-note').value = '';
